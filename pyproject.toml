@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "rv-helper"
+version = "0.1.0"
+description = ""
+authors = ["mdvtkr <mdvtkr@gmail.com>"]
+readme = "README.md"
+packages = [{include = "rv_helper"}]
+
+[tool.poetry.dependencies]
+python = ">3.8, <3.12"
+seleniummm = {git = "https://github.com/mdvtkr/seleniummm.git"}
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
