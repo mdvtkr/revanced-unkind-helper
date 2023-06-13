@@ -260,14 +260,19 @@ def download_revanced_patch():
             response = request.urlretrieve(url, str(download_path.absolute()))
 
     # find compatible youtube version
-    md = jdata['body']
-    try:
-        start = md.find('`', md.find('support version', md.find('youtube')))+1
-        end = md.find('`', start)
-        youtube_version = md[start:end]
-    except:
-        youtube_version = None
-
+    # use first encountered youtube version
+    youtube_version = None
+    with (Path('input/patches.json')).open('rt') as f:
+        patches = json.load(f)
+    for patch in patches:
+        for pkg in patch['compatiblePackages']:
+            versions = pkg['versions']
+            if len(versions) > 0:
+                youtube_version = versions[-1]
+                break
+        if youtube_version:
+            break
+    
     print('compatible youtube version: ' + youtube_version, 1)
     return name, download_path, youtube_version
 
@@ -283,7 +288,7 @@ def download_revanced_integrations():
     print('url: ' + url, 1)
 
     download_path = Path(root_path+'/input')/name
-    if 'jar' in name and download_path.exists():
+    if 'apk' in name and download_path.exists():
         print('latest revanced patch is in input folder', 2)
     else:   # always download patches.json 
         response = request.urlretrieve(url, str(download_path.absolute()))
@@ -313,13 +318,24 @@ def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, ve
         return applicable_list
 
     patches = find_applicable_patches('com.google.android.youtube', version)
-    print('patches to be applied:\n' + '\n'.join(patches), 2)
+    print('patches to be applied:\n         ' + '\n         '.join(patches), 2)
 
     for b in range (0,len(patches)):
         patches.insert(b*2, '-i')
 
+    def find_keystore():
+        dir = (Path('output'))
+        if dir.exists():
+            for file in dir.iterdir():
+                if file.is_file() and file.suffix == '.keystore':
+                    return str(file.absolute())
+        return None
+
     java_path = java_home+'/java' if java_home != None else 'java'
-    args = [java_path, '-jar', str(rv_path), '-a', apk_path, '-o', out_path, '-b', str(patch_path), '-m', str(integration_path), '--exclusive'] + patches
+    args = [java_path, '-jar', str(rv_path), '-a', apk_path, '-o', out_path, '-b', str(patch_path), '-m', str(integration_path), '--exclusive']
+    args += patches
+    if (keystore := find_keystore()):
+        args += ['--keystore='+keystore ]
     result = execute_shell(args)
     print('\n'.join(result))
     return
@@ -337,7 +353,7 @@ def download_microg():
     print('url: ' + url, 1)
 
     download_path = Path(root_path+'/output')/f'{Path(name).stem}.{ver}.apk'
-    if 'jar' in name and download_path.exists():
+    if 'apk' in name and download_path.exists():
         print('latest microg apk is in output folder', 2)
     else:   # always download patches.json 
         response = request.urlretrieve(url, str(download_path.absolute()))
