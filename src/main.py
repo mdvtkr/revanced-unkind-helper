@@ -7,6 +7,7 @@ import time
 import traceback
 import json
 from subprocess import *
+import multiprocessing
 
 _print = print
 print = lambda v, i=0: _print(i*'   ' + v, flush=True)
@@ -362,6 +363,8 @@ def download_microg():
 
 
 if __name__ == '__main__':
+    multiprocessing.freeze_support()
+    
     global root_path
     if getattr(sys, 'frozen', False):
         root_path = str(Path(sys.executable).parent)
