@@ -109,7 +109,7 @@ def download_youtube(input_folder, version=None):
             time.sleep(1)
 
     try:
-        browser = WebDriver(set_download_path=root_path+'/input', visible=True)
+        browser = WebDriver(set_download_path=root_path+'/rv/input', visible=True)
 
         def go_target_apk_page(page=1, retry=0):
             if retry == 3:
@@ -207,7 +207,7 @@ def download_youtube(input_folder, version=None):
                 # <a rel="nofollow" data-google-vignette="false" href="/wp-content/themes/APKMirror/download.php?id=4760949&amp;key=e3572129a0dcfdfa2cf5dad96076f869946c14ed&amp;forcebaseapk=true">here</a>
 
         print('prepare youtube apk...')
-        download_folder = Path(root_path+'/input')
+        download_folder = Path(root_path+'/rv/input')
         try:
             apk_url, opener = get_download_link(download_page_url, cookies)
 
@@ -234,7 +234,7 @@ def download_revanced_cli():
     url = jdata['assets'][0]['browser_download_url']
     print('url: ' + url, 1)
 
-    download_path = Path(root_path+'/input')/name
+    download_path = Path(root_path+'/rv/input')/name
     if download_path.exists():
         is_new = False
         print('latest revanced cli is in input folder', 2)
@@ -255,7 +255,7 @@ def download_revanced_patch():
         url = asset['browser_download_url']
         print('url: ' + url, 1)
 
-        download_path = Path(root_path+'/input')/name
+        download_path = Path(root_path+'/rv/input')/name
         if 'jar' in name and download_path.exists():
             print('latest revanced patch is in input folder', 2)
             is_new = False
@@ -266,7 +266,7 @@ def download_revanced_patch():
     # find compatible youtube version
     # use first encountered youtube version
     youtube_version = None
-    with (Path('input/patches.json')).open('rt') as f:
+    with (Path(root_path+'/rv/input/patches.json')).open('rt') as f:
         patches = json.load(f)
     for patch in patches:
         for pkg in patch['compatiblePackages']:
@@ -291,7 +291,7 @@ def download_revanced_integrations():
     url = asset['browser_download_url']
     print('url: ' + url, 1)
 
-    download_path = Path(root_path+'/input')/name
+    download_path = Path(root_path+'/rv/input')/name
     if 'apk' in name and download_path.exists():
         print('latest revanced patch is in input folder', 2)
         is_new = False
@@ -302,7 +302,7 @@ def download_revanced_integrations():
     return name, download_path, is_new
 
 def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, version, args):
-    out_path = Path(root_path)/'output'
+    out_path = Path(root_path)/'rv'/'output'
     out_path.mkdir(0o754, True, True)
     out_path = str(out_path/Path(apk_path).stem)
     if args.opt_path:
@@ -317,7 +317,7 @@ def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, ve
     out_path += '.rv.apk'
 
     def find_applicable_patches(pkg_name, ver):
-        patch_file = Path('input/patches.json')
+        patch_file = Path(root_path + '/rv/input/patches.json')
         if not patch_file.exists():
             return None
         
@@ -345,7 +345,7 @@ def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, ve
         patches.insert(b*2, '-i')
 
     def find_keystore():
-        dir = (Path('output'))
+        dir = (Path(root_path + '/rv/output'))
         if dir.exists():
             for file in dir.iterdir():
                 if file.is_file() and file.suffix == '.keystore':
@@ -378,7 +378,7 @@ def download_microg():
     url = asset['browser_download_url']
     print('url: ' + url, 1)
 
-    download_path = Path(root_path+'/output')/f'{Path(name).stem}.{ver}.apk'
+    download_path = Path(root_path+'/rv/output')/f'{Path(name).stem}.{ver}.apk'
     if 'apk' in name and download_path.exists():
         print('latest microg apk is in output folder', 2)
         is_new = False
@@ -398,15 +398,15 @@ if __name__ == '__main__':
     
     global root_path
     if getattr(sys, 'frozen', False):
-        root_path = str(Path(sys.executable).parent)
+        root_path = str((Path(sys.executable).parent))
     else:
         root_path = './'
 
     # prepare download folder
-    download_folder = Path(root_path+'/input')
+    download_folder = Path(root_path+'/rv/input')
     download_folder.mkdir(0o754, True, True)
 
-    output_folder = Path(root_path+'/output')
+    output_folder = Path(root_path+'/rv/output')
     output_folder.mkdir(0o754, True, True)
 
     java_home = setup_java()
@@ -436,9 +436,9 @@ if __name__ == '__main__':
         print('send result to discord')
         if new_apk_path and args.notice:
             with open('./secret/rvhelper', 'rt') as f:
-                url = f.readline().strip()
+                discord_url = f.readline().strip()
             
-            discord = Discord(url)
+            discord = Discord(discord_url)
             filename = str(Path(new_apk_path).name)
             discord.set_content(f'{filename} is ready!{os.linesep}')
             # TODO send download url

@@ -4,3 +4,7 @@ output
 java
 **/revanced-cache
 options.json
+build
+dist
+secret
+*.spec
