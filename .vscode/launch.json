@@ -10,7 +10,8 @@
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "args": ["--options=config/options.ddotty.json"]
         }
     ]
 }
