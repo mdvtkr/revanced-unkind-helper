@@ -39,7 +39,7 @@ def execute_shell(args):
     return ret
 
 def setup_java():   # currently zulu 17 is required.
-    java_path = (Path(root_path)/'java')
+    java_path = (Path(root_path)/'rv'/'java')
     java_path.mkdir(0o754, True, True)
 
     url = "https://cdn.azul.com/zulu/bin/zulu17.42.19-ca-jre17.0.7-macosx_x64.zip"
@@ -109,7 +109,10 @@ def download_youtube(input_folder, version=None):
             time.sleep(1)
 
     try:
-        browser = WebDriver(set_download_path=root_path+'/rv/input', visible=True)
+        browser = WebDriver(
+            set_download_path=root_path+'/rv/input', 
+            # visible=True
+        )
 
         def go_target_apk_page(page=1, retry=0):
             if retry == 3:
@@ -266,7 +269,7 @@ def download_revanced_patch():
     # find compatible youtube version
     # use first encountered youtube version
     youtube_version = None
-    with (Path(root_path+'/rv/input/patches.json')).open('rt') as f:
+    with (Path(root_path + '/rv/input/patches.json')).open('rt') as f:
         patches = json.load(f)
     for patch in patches:
         for pkg in patch['compatiblePackages']:
@@ -392,6 +395,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--options', type=str, help='options file path', default=None, action='store', dest='opt_path')
     parser.add_argument('--out_path', type=str, help='path to write patched apk file', default=None, action='store', dest='out_path')
+    parser.add_argument('--download_link', type=str, help='base url of download link for patched apk file', default=None, action='store', dest='down_link')
     parser.add_argument('--notice', help='notice discord the result if new apk is ready', default=False, action='store_true', dest='notice')
     parser.add_argument('--dry-run', help='show the command', default=False, action='store_true', dest='dry_run')
     args = parser.parse_args()
@@ -436,11 +440,14 @@ if __name__ == '__main__':
         print('send result to discord')
         if new_apk_path and args.notice:
             with open('./secret/rvhelper', 'rt') as f:
-                discord_url = f.readline().strip()
+                url = f.readline().strip()
             
-            discord = Discord(discord_url)
+            discord = Discord(url)
             filename = str(Path(new_apk_path).name)
-            discord.set_content(f'{filename} is ready!{os.linesep}')
+            msg = f'{filename} is ready!'
+            if args.down_link:
+                msg += f'{os.linesep}url: {args.down_link}{filename}'
+            discord.set_content()
             # TODO send download url
             resp = discord.execute()
             print(f'resp: {resp.status_code}: {resp.reason}')
