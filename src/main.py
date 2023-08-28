@@ -12,6 +12,7 @@ from subprocess import *
 import html
 import argparse
 from discord_webhook import DiscordWebhook as Discord
+import shutil
 
 
 _print = print
@@ -304,20 +305,23 @@ def download_revanced_integrations():
         
     return name, download_path, is_new
 
-def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, version, args):
-    out_path = Path(root_path)/'rv'/'output'
+def get_new_youtube_path(opt_path, apk_stem):
+    out_path = Path(root_path)/'rv'/'output/'
     out_path.mkdir(0o754, True, True)
-    out_path = str(out_path/Path(apk_path).stem)
-    if args.opt_path:
-        with open(args.opt_path) as f:
+
+    if opt_path:
+        with open(opt_path) as f:
             opts = json.load(f)
         for opt in opts:
             if opt['patchName'] == 'Custom branding':
                 keyword = opt['options'][0]['value']
                 if keyword:
-                    out_path += ('.' + keyword)
+                    tail = ('.' + keyword)
                     break
-    out_path += '.rv.apk'
+    return str(out_path/(apk_stem + tail + '.rv.apk'))
+
+def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, version, args):
+    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem)
 
     def find_applicable_patches(pkg_name, ver):
         patch_file = Path(root_path + '/rv/input/patches.json')
@@ -356,14 +360,14 @@ def patch_youtube(java_home, rv_path, patch_path, apk_path, integration_path, ve
         return None
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(rv_path), '-a', apk_path, '-o', out_path, '-b', str(patch_path), '-m', str(integration_path)]
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_path), '-m', str(integration_path)]
+    if (keystore := find_keystore()):
+        cmd += ['--keystore='+keystore ]
+    cmd += patches
     if args.opt_path:
         cmd += ['-i', 'change-package-name']
         cmd += [f'--options={args.opt_path}']
-    cmd += patches
-    if (keystore := find_keystore()):
-        cmd += ['--keystore='+keystore ]
-    cmd += ['--exclusive']
+    cmd += [apk_path]
     if not args.dry_run:
         result = execute_shell(cmd)
     print('\n'.join(result))
@@ -415,7 +419,7 @@ if __name__ == '__main__':
 
     java_home = setup_java()
     need_update = False
-    rv_name, rv_path, is_new = download_revanced_cli()
+    cli_name, cli_path, is_new = download_revanced_cli()
     need_update = need_update or is_new
 
     patch_name, patch_path, youtube_version, is_new = download_revanced_patch()
@@ -430,12 +434,20 @@ if __name__ == '__main__':
     youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
     need_update = need_update or is_new
 
+    new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem)
+    need_update = need_update or not Path(new_apk_path).exists()
+
     if not need_update:
         print('nothing new...')
     elif not youtube_apk_path:   # pure youtube apk path
         print('youtube apk file not found...')
     else :  
-        new_apk_path = patch_youtube(java_home, rv_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
+        new_apk_path = patch_youtube(java_home, cli_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
+
+        if args.out_path:
+            dest_path = args.out_path + '/' + Path(new_apk_path).name
+            print('move to outpath -> ' + args.out_path)
+            shutil.copy(new_apk_path, dest_path)
 
         print('send result to discord')
         if new_apk_path and args.notice:
@@ -447,8 +459,7 @@ if __name__ == '__main__':
             msg = f'{filename} is ready!'
             if args.down_link:
                 msg += f'{os.linesep}url: {args.down_link}{filename}'
-            discord.set_content()
-            # TODO send download url
+            discord.set_content(msg)
             resp = discord.execute()
             print(f'resp: {resp.status_code}: {resp.reason}')
         print('all done')

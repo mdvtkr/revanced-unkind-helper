@@ -2,7 +2,8 @@
 input
 output
 java
-**/revanced-cache
+revanced-cache
+revanced-resource-cache
 options.json
 build
 dist
