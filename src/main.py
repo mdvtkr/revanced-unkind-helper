@@ -377,6 +377,11 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         cmd += ['--keystore='+keystore ]
     cmd += patches
     if args.opt_path:
+        print('update {args.opt_path} if required')
+        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.opt_path}', '-o', '-u', str(patch_path)]
+        result = execute_shell(opt_cmd)
+        print('\n'.join(result))
+
         cmd += ['-i', 'change-package-name']
         cmd += [f'--options={args.opt_path}']
     cmd += [apk_path]
@@ -458,7 +463,7 @@ if __name__ == '__main__':
         print('nothing new...')
     elif not youtube_apk_path:   # pure youtube apk path
         print('youtube apk file not found...')
-    else :  
+    else:
         new_apk_path = patch_youtube(java_home, cli_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
 
         if args.out_path:
