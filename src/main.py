@@ -13,6 +13,7 @@ import html
 import argparse
 from discord_webhook import DiscordWebhook as Discord
 import shutil
+import platform
 
 
 _print = print
@@ -43,10 +44,20 @@ def setup_java():   # currently zulu 17 is required.
     java_path = (Path(root_path)/'rv'/'java')
     java_path.mkdir(0o754, True, True)
 
-    url = "https://cdn.azul.com/zulu/bin/zulu17.42.19-ca-jre17.0.7-macosx_x64.zip"
-    file_name = Path(url[url.rfind('/', 0)+1:len(url)])
+    os_name = platform.system().casefold()
+    if os_name == 'linux':
+        url = 'https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jdk17.0.8-linux_x64.zip'
+        file_name = Path(url[url.rfind('/', 0)+1:len(url)])
+        java_home = (java_path/file_name.stem/'bin').absolute()
+    elif os_name == 'darwin':
+        url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-macosx_x64.zip"
+        file_name = Path(url[url.rfind('/', 0)+1:len(url)])
+        java_home = (java_path/file_name.stem/f'zulu-{java_version}.jre'/'Contents'/'Home'/'bin').absolute()
+    else:   # windows
+        url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jdk17.0.8-win_x64.zip"
+        file_name = Path(url[url.rfind('/', 0)+1:len(url)])
+        java_home = (java_path/file_name.stem/'bin').absolute()
     java_version = str(file_name)[4:str(file_name).find('.', 0)]
-    java_home = (java_path/file_name.stem/f'zulu-{java_version}.jre'/'Contents'/'Home'/'bin').absolute()
 
     # os.environ['JAVA_HOME'] = str(java_home)
     # os.environ['JAVA_PATH'] = str(java_home/'java')
@@ -111,8 +122,8 @@ def download_youtube(input_folder, version=None):
 
     try:
         browser = WebDriver(
-            set_download_path=root_path+'/rv/input', 
-            # visible=True
+            set_download_path=root_path+'/rv/input'
+            #, visible=True
         )
 
         def go_target_apk_page(page=1, retry=0):
