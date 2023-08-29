@@ -469,7 +469,7 @@ if __name__ == '__main__':
             filename = str(Path(new_apk_path).name)
             msg = f'{filename} is ready!'
             if args.down_link:
-                msg += f'{os.linesep}url: {args.down_link}{filename}'
+                msg += f'{os.linesep}{args.down_link}{filename}'
             discord.set_content(msg)
             resp = discord.execute()
             print(f'resp: {resp.status_code}: {resp.reason}')
