@@ -381,7 +381,12 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
     cmd += [apk_path]
     if not args.dry_run:
         result = execute_shell(cmd)
-    print('\n'.join(result))
+        print('\n'.join(result))
+
+        print('purge caches')
+        cmd = ['rm', '-rf', 'revanced-cache', 'revanced-resource-cache']
+        result = execute_shell(cmd)
+        print('\n'.join(result))
     return out_path
 
 def download_microg():
