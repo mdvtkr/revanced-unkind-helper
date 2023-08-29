@@ -320,6 +320,7 @@ def get_new_youtube_path(opt_path, apk_stem):
     out_path = Path(root_path)/'rv'/'output/'
     out_path.mkdir(0o754, True, True)
 
+    tail = ''
     if opt_path:
         with open(opt_path) as f:
             opts = json.load(f)
