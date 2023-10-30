@@ -14,10 +14,20 @@ import argparse
 from discord_webhook import DiscordWebhook as Discord
 import shutil
 import platform
+import random
+from urllib.error import HTTPError
+from enum import Enum
 
 
 _print = print
 print = lambda v, i=0: _print(i*'   ' + v, flush=True)
+
+class PKG_NAME(str, Enum):
+    TUBE = 'com.google.android.youtube'
+
+    @classmethod
+    def __repr__(self):
+        return self.value()
 
 def execute_shell(args):
     print(f'shell command: ' + " ".join(args), 1)
@@ -52,13 +62,13 @@ def setup_java():   # currently zulu 17 is required.
     elif os_name == 'darwin':
         url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-macosx_x64.zip"
         file_name = Path(url[url.rfind('/', 0)+1:len(url)])
+        java_version = str(file_name)[4:str(file_name).find('.', 0)]
         java_home = (java_path/file_name.stem/f'zulu-{java_version}.jre'/'Contents'/'Home'/'bin').absolute()
     else:   # windows
         url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jdk17.0.8-win_x64.zip"
         file_name = Path(url[url.rfind('/', 0)+1:len(url)])
         java_home = (java_path/file_name.stem/'bin').absolute()
-    java_version = str(file_name)[4:str(file_name).find('.', 0)]
-
+    
     # os.environ['JAVA_HOME'] = str(java_home)
     # os.environ['JAVA_PATH'] = str(java_home/'java')
     # print(f'JAVA_HOME: {os.environ["JAVA_HOME"]}')
@@ -93,20 +103,17 @@ def download_youtube(input_folder, version=None):
         try:
             # find full screen ad
             print('checking full screen ad...', 1)
-            time.sleep(3)
-            
-            ad_ins = browser.find_elements(css='ins.adsbygoogle.adsbygoogle-noablate')
-            for ins in ad_ins:
-                inline_css = ins.get_attribute('style').replace(' ', '')
-                if 'width:100vw' in inline_css and 'height:100vh' in inline_css:
-                    outer_frame = browser.find_element(ins, tag='iframe')
-                    browser.switch_to_frame(frame=outer_frame)
-                    adframe = browser.find_element(id='ad_iframe')
-                    browser.switch_to_frame(frame=adframe)
-                    close_btn = browser.wait_until_element_visible(id='dismiss-button')
-                    browser.click(close_btn)
-                    browser.switch_to_frame(idx=0)
-                    print('ad closed', 2)
+            time.sleep(2)
+
+            iframe = browser.find_element(xpath="//ins/div[contains(@id, 'google_ads_iframe')]/iframe")
+            browser.switch_to_frame(iframe)
+            try:
+                browser.click(id='dismiss-button')  # try close button in outside of ad_iframe
+            except:
+                browser.switch_to_frame(frame=browser.find_element(id='ad_iframe'))
+                browser.click(id='dismiss-button')
+            browser.switch_to_frame()
+            print('ad closed', 2)
         except:
             # no ad popup
             print('no ad', 2)
@@ -123,7 +130,8 @@ def download_youtube(input_folder, version=None):
     try:
         browser = WebDriver(
             set_download_path=root_path+'/rv/input'
-            #, visible=True
+            , debug_port=random.randrange(19000, 19299)
+            # , visible=True
         )
 
         def go_target_apk_page(page=1, retry=0):
@@ -132,7 +140,7 @@ def download_youtube(input_folder, version=None):
             
             for i in range(page, 4):    # check 1~3 page
                 browser.get(f'https://www.apkmirror.com/uploads/page/{i}/?appcategory=youtube')
-                time.sleep(5)
+                time.sleep(2)
                 print('youtube page open: ' + str(i))
                 try:
                     links = browser.wait_until_elements_visible(css='div.listWidget div div.appRow h5 a')
@@ -254,12 +262,16 @@ def download_revanced_cli():
         is_new = False
         print('latest revanced cli is in input folder', 2)
     else:
-        response = request.urlretrieve(url, str(download_path.absolute()))
-        is_new = True
+        try:
+            response = request.urlretrieve(url, str(download_path.absolute()))
+            is_new = True
+        except HTTPError as e:
+            print('failed to get revanced cli from github', 2)
+            is_new = False
     
     return name, download_path, is_new
 
-def download_revanced_patch():
+def download_revanced_patch(pkg_name):
     print('download lastest revanced patch')
     url = "https://api.github.com/repos/revanced/revanced-patches/releases/latest"
     response = request.urlopen(url)
@@ -279,21 +291,26 @@ def download_revanced_patch():
             is_new = True
 
     # find compatible youtube version
-    # use first encountered youtube version
-    youtube_version = None
+    # use the highest version
+    youtube_versions = []
     with (Path(root_path + '/rv/input/patches.json')).open('rt') as f:
         patches = json.load(f)
     for patch in patches:
+        if not patch['compatiblePackages']: # universal patch
+            continue 
+
         for pkg in patch['compatiblePackages']:
+            if pkg['name'] != pkg_name:
+                continue
             versions = pkg['versions']
             if versions != None and len(versions) > 0:
-                youtube_version = versions[-1]
+                youtube_versions.extend(versions)
                 break
-        if youtube_version:
-            break
     
-    print('compatible youtube version: ' + youtube_version, 1)
-    return name, download_path, youtube_version, is_new
+    youtube_versions = sorted(set(youtube_versions))
+    
+    print('compatible youtube version: ' + youtube_versions[-1], 1)
+    return name, download_path, youtube_versions[-1], is_new
 
 def download_revanced_integrations():
     print('download lastest revanced integrations')
@@ -311,9 +328,12 @@ def download_revanced_integrations():
         print('latest revanced patch is in input folder', 2)
         is_new = False
     else:   # always download patches.json 
-        response = request.urlretrieve(url, str(download_path.absolute()))
-        is_new = True
-        
+        try:
+            response = request.urlretrieve(url, str(download_path.absolute()))
+            is_new = True
+        except Exception as e:
+            pass
+
     return name, download_path, is_new
 
 def get_new_youtube_path(opt_path, apk_stem):
@@ -350,14 +370,22 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         patch_name_format = '"{}"' if args.dry_run else '{}'
         for patch in patch_list:
             patch_name = patch['name'].lower().replace(' ', '-')    # conversion according to naming convension
-            if len(patch['compatiblePackages']) == 0 and patch['excluded'] != True:   # universal patches which are not
-                applicable_list.append(patch_name_format.format(patch_name))
-            for pkg in patch['compatiblePackages']:
-                if pkg_name == pkg['name'] and pkg_name not in exclude_list and (len(pkg['versions']) == 0 or version in pkg['versions']):
+            if patch['compatiblePackages'] == None:   # universal patches which are default to use
+                if patch['use'] == True:
                     applicable_list.append(patch_name_format.format(patch_name))
+                else:
+                    print(f'{patch_name} excluded.', 3)
+                    continue
+
+            for pkg in patch['compatiblePackages']:
+                if pkg_name == pkg['name']:
+                    if pkg_name not in exclude_list and pkg['versions'] != None and (len(pkg['versions']) == 0 or version in pkg['versions']):
+                        applicable_list.append(patch_name_format.format(patch_name))
+                    else:
+                        print(f'{patch_name} excluded.', 3)
         return applicable_list
 
-    patches = find_applicable_patches('com.google.android.youtube', version)
+    patches = find_applicable_patches(PKG_NAME.TUBE, version)
     print('patches to be applied:\n         ' + '\n         '.join(patches), 2)
 
     for b in range (0,len(patches)):
@@ -390,7 +418,7 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         print('\n'.join(result))
 
         print('purge caches')
-        cmd = ['rm', '-rf', 'revanced-cache', 'revanced-resource-cache']
+        cmd = ['rm', '-rf', 'revanced-cache*', 'revanced-resource-cache*']
         result = execute_shell(cmd)
         print('\n'.join(result))
     return out_path
@@ -411,7 +439,7 @@ def download_microg():
     if 'apk' in name and download_path.exists():
         print('latest microg apk is in output folder', 2)
         is_new = False
-    else:   # always download patches.json 
+    else:
         response = request.urlretrieve(url, str(download_path.absolute()))
         is_new = True
         
@@ -432,58 +460,67 @@ if __name__ == '__main__':
     else:
         root_path = './'
 
-    # prepare download folder
-    download_folder = Path(root_path+'/rv/input')
-    download_folder.mkdir(0o754, True, True)
+    try:
+        # prepare download folder
+        download_folder = Path(root_path+'/rv/input')
+        download_folder.mkdir(0o754, True, True)
 
-    output_folder = Path(root_path+'/rv/output')
-    output_folder.mkdir(0o754, True, True)
+        output_folder = Path(root_path+'/rv/output')
+        output_folder.mkdir(0o754, True, True)
 
-    java_home = setup_java()
-    need_update = False
-    cli_name, cli_path, is_new = download_revanced_cli()
-    need_update = need_update or is_new
+        java_home = setup_java()
+        need_update = False
+        cli_name, cli_path, is_new = download_revanced_cli()
+        need_update = need_update or is_new
 
-    patch_name, patch_path, youtube_version, is_new = download_revanced_patch()
-    need_update = need_update or is_new
+        patch_name, patch_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE)
+        need_update = need_update or is_new
 
-    integration_name, integration_path, is_new = download_revanced_integrations()
-    need_update = need_update or is_new
+        integration_name, integration_path, is_new = download_revanced_integrations()
+        need_update = need_update or is_new
 
-    microg_fname, migrog_path, is_new = download_microg()
-    need_update = need_update or is_new
+        microg_fname, migrog_path, is_new = download_microg()
+        need_update = need_update or is_new
 
-    youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
-    need_update = need_update or is_new
+        youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
+        need_update = need_update or is_new
 
-    new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem)
-    need_update = need_update or not Path(new_apk_path).exists()
+        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem)
+        need_update = need_update or not Path(new_apk_path).exists()
 
-    if not need_update:
-        print('nothing new...')
-    elif not youtube_apk_path:   # pure youtube apk path
-        print('youtube apk file not found...')
-    else:
-        new_apk_path = patch_youtube(java_home, cli_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
+        if not need_update:
+            print('nothing new...')
+        elif not youtube_apk_path:   # pure youtube apk path
+            print('youtube apk file not found...')
+        else:
+            new_apk_path = patch_youtube(java_home, cli_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
 
-        if args.out_path:
-            dest_path = args.out_path + '/' + Path(new_apk_path).name
-            print('move to outpath -> ' + args.out_path)
-            shutil.copy(new_apk_path, dest_path)
+            if Path(new_apk_path).exists() and args.out_path:
+                dest_path = args.out_path + '/' + Path(new_apk_path).name
+                print('move to outpath -> ' + args.out_path)
+                shutil.copy(new_apk_path, dest_path)
 
-        print('send result to discord')
-        if new_apk_path and args.notice:
-            with open('./secret/rvhelper', 'rt') as f:
-                url = f.readline().strip()
-            
-            discord = Discord(url)
-            filename = str(Path(new_apk_path).name)
-            msg = f'{filename} is ready!'
-            if args.down_link:
-                msg += f'{os.linesep}{args.down_link}{filename}'
-            discord.set_content(msg)
-            resp = discord.execute()
-            print(f'resp: {resp.status_code}: {resp.reason}')
-        print('all done')
+            print('send result to discord')
+            if new_apk_path and args.notice:
+                with open('./secret/rvhelper', 'rt') as f:
+                    url = f.readline().strip()
+                
+                discord = Discord(url)
+                filename = str(Path(new_apk_path).name)
+                msg = f'{filename} is ready!'
+                if args.down_link:
+                    msg += f'{os.linesep}{args.down_link}{filename}'
+                discord.set_content(msg)
+                resp = discord.execute()
+                print(f'resp: {resp.status_code}: {resp.reason}')
+            print('all done')
+    except:
+        with open('./secret/rvhelper', 'rt') as f:
+            url = f.readline().strip()
+        print(traceback.format_exc())
+        discord = Discord(url)                
+        discord.set_content('failed to complete rv_helper')
+        resp = discord.execute()
+        print(f'resp: {resp.status_code}: {resp.reason}')
 
     
