@@ -286,7 +286,7 @@ def download_revanced_patch():
     for patch in patches:
         for pkg in patch['compatiblePackages']:
             versions = pkg['versions']
-            if len(versions) > 0:
+            if versions != None and len(versions) > 0:
                 youtube_version = versions[-1]
                 break
         if youtube_version:
