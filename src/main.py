@@ -1,6 +1,6 @@
 import multiprocessing
 multiprocessing.freeze_support()
-from urllib import request
+from urllib import request, parse
 from pathlib import Path
 from zipfile import ZipFile
 import sys, os
@@ -78,27 +78,20 @@ def setup_java():   # currently zulu 17 is required.
 
     if java_home.exists():
         print(f'java is installed: {java_home}')
-        result = execute_shell(['chmod', '755', '-R', str(java_home.parent)])
-        print("\n".join(result), 1)
-        return str(java_home)
+    else:
+        print(f'zip file downloading...', 1)
+        response = request.urlretrieve(url, str(java_path/file_name))
+        print(f'downloaded', 1)
 
-    print(f'zip file downloading...', 1)
-    response = request.urlretrieve(url, str(java_path/file_name))
-    print(f'downloaded', 1)
+        with ZipFile(str(java_path/file_name)) as f:
+            f.extractall(str(java_path))
 
-    with ZipFile(str(java_path/file_name)) as f:
-        f.extractall(str(java_path))
-
-    result = execute_shell(['chmod', '755', '-R', str(java_home.parent)])
+    result = execute_shell(['chmod', '-R', '755', str(java_home.parent)])
     print("\n".join(result), 1)
     
     return str(java_home)
 
 def download_youtube(input_folder, version=None):
-    input_apk_path = (input_folder/f'youtube-{version}.apk')
-    if input_apk_path.exists():
-        return str(input_apk_path), False
-    
     def close_ad():
         try:
             # find full screen ad
@@ -127,113 +120,123 @@ def download_youtube(input_folder, version=None):
             print('popup ad closed', 2)
             time.sleep(1)
 
-    try:
-        browser = WebDriver(
-            set_download_path=root_path+'/rv/input'
-            , debug_port=random.randrange(19000, 19299)
-            # , visible=True
-        )
-
-        def go_target_apk_page(page=1, retry=0):
-            if retry == 3:
-                return False
-            
-            for i in range(page, 4):    # check 1~3 page
-                browser.get(f'https://www.apkmirror.com/uploads/page/{i}/?appcategory=youtube')
-                time.sleep(2)
-                print('youtube page open: ' + str(i))
-                try:
-                    links = browser.wait_until_elements_visible(css='div.listWidget div div.appRow h5 a')
-                except:     # if failed, check ad and try again
-                    print('something wrong...', 2)
-                    close_ad()
-                    return go_target_apk_page(page=i, retry=retry+1)
-                
-                for link in links:
-                    if version == None or version in link.text:
-                        print(f'apk webpage is found: {link.text} - {link.get_attribute("href")}', 2)
-                        browser.click(link)
-                        return True
-                    else:
-                        continue
+    def go_target_apk_page(page=1, retry=0):
+        if retry == 3:
             return False
-
-        if not go_target_apk_page():
-            print('apk webpage is not found.')
-            return None, False
         
-        def go_item_page(retry=0):
-            if retry == 3:
-                return False, None
-            
+        for i in range(page, 4):    # check 1~3 page
+            browser.get(f'https://www.apkmirror.com/uploads/page/{i}/?appcategory=youtube')
+            time.sleep(2)
+            print('youtube page open: ' + str(i))
             try:
-                rows = browser.wait_until_elements_visible(css='div.table-row.headerFont')
-            except:
+                links = browser.wait_until_elements_presence(css='div.listWidget div div.appRow h5 a')
+            except:     # if failed, check ad and try again
                 print('something wrong...', 2)
                 close_ad()
-                return go_item_page(retry+1)
+                return go_target_apk_page(page=i, retry=retry+1)
             
-            for row in rows:
-                badges = browser.find_elements(row, css='span.apkm-badge')
-                for badge in badges:
-                    if badge.text == 'APK':
-                        link = browser.find_element(row, css='a.accent_color')
-                        ver = link.text
-                        print(f'apk item page is found: {ver} - {link.get_attribute("href")}', 2)
-                        browser.click(link)
-                        return True, ver
+            for link in links:
+                if version == None or version in link.text:
+                    print(f'apk webpage is found: {link.text} - {link.get_attribute("href")}', 2)
+                    browser.get(link.get_attribute("href"))
+                    return True
+                else:
+                    continue
+        return False
+
+    def go_item_page(retry=0):
+        if retry == 3:
             return False, None
+        
+        try:
+            rows = browser.wait_until_elements_presence(css='div.table-row.headerFont')
+        except:
+            print('something wrong...', 2)
+            close_ad()
+            return go_item_page(retry+1)
+        
+        for row in rows:
+            badges = browser.find_elements(row, css='span.apkm-badge')
+            for badge in badges:
+                if badge.text == 'APK':
+                    link = browser.find_element(row, css='a.accent_color')
+                    ver = link.text
+                    print(f'apk item page is found: {ver} - {link.get_attribute("href")}', 2)
+                    browser.get(link.get_attribute("href"))
+                    return True, ver
+        return False, None
+        
+    def get_download_page_link(retry=0) -> str:
+        if retry == 3:
+            return None
+        
+        try:
+            down_btn = browser.wait_until_elements_presence(xpath="//a[@rel='nofollow' and contains(@class, 'downloadButton')]")[0]
+            url = down_btn.get_attribute('href')
+            print('apk download page url is found: ' + url, 2)
+            return url
+        except:
+            print('something wrong...', 2)
+            close_ad()
+            return get_download_page_link(retry+1)
+
+    def get_download_link(url):
+        cookies = browser.get_cookies()
+        opener = request.build_opener()
+        cookiestr = ""
+        for c in cookies:
+            cookiestr += f"{c['name']}={c['value']}; "
+        opener.addheaders = [('cookie', cookiestr)]
+        request.install_opener(opener)
+        response = request.urlretrieve(url)
+        with open(response[0], 'rt') as f:
+            htmlstr = f.read()
+            start = htmlstr.find('href="', htmlstr.find('<a rel="nofollow"'))+6
+            end = htmlstr.find('">', start)
+        os.remove(response[0])
+        return "https://www.apkmirror.com" + html.unescape(htmlstr[start:end])
+            # <a rel="nofollow" data-google-vignette="false" href="/wp-content/themes/APKMirror/download.php?id=4760949&amp;key=e3572129a0dcfdfa2cf5dad96076f869946c14ed&amp;forcebaseapk=true">here</a>
+
+    input_apk_path = (input_folder/f'youtube-{version}.apk')
+    if input_apk_path.exists():
+        return str(input_apk_path), False
+    
+    print('visit apkmirror')
+    browser = WebDriver(
+        set_download_path=root_path+'/rv/input'
+        # , debug_port=random.randrange(19000, 19299)
+        , debug_port=19208
+        , driver_preference='standard'
+        # , visible=True
+    )
+
+    try:
+        # try directly access to corresponding version page
+        browser.get(f'https://www.apkmirror.com/apk/google-inc/youtube/youtube-{version}-release/')
+        try:
+            browser.wait_until_element_visible(css='div.errorPage') # if error, find page from list
+            if not go_target_apk_page():
+                print('apk webpage is not found.', 1)
+                return None, False
+        except:
+            pass        # direct access succeeded.
         
         item_page_found, item_version = go_item_page()
         if not item_page_found:
-            print('apk item page is not found.')
+            print('apk item page is not found.', 1)
             return None, False
         if version == None:     # set the version code as the downloading version
             version = item_version
-        
-        def get_download_page_link(retry=0) -> str:
-            if retry == 3:
-                return None
-            
-            try:
-                down_btn = browser.wait_until_element_clickable(xpath="//a[@rel='nofollow' and contains(@class, 'downloadButton')]")
-                url = down_btn.get_attribute('href')
-                print('apk download page url is found: ' + url)
-                return url
-            except:
-                print('something wrong...', 2)
-                close_ad()
-                return get_download_page_link(retry+1)
 
         if (download_page_url:=get_download_page_link()) == None:
-            print('apk download page url is not found.')
+            print('apk download page url is not found.', 1)
             return None, False
         
         browser.get(download_page_url)
-        
-        cookies = browser.get_cookies()
-
-        def get_download_link(url, cookie):
-            opener = request.build_opener()
-            cookiestr = ""
-            for c in cookie:
-                cookiestr += f"{c['name']}={c['value']}; "
-            opener.addheaders = [('cookie', cookiestr)]
-            request.install_opener(opener)
-            response = request.urlretrieve(url)
-            with open(response[0], 'rt') as f:
-                htmlstr = f.read()
-                start = htmlstr.find('href="', htmlstr.find('<a rel="nofollow"'))+6
-                end = htmlstr.find('">', start)
-            os.remove(response[0])
-            return "https://www.apkmirror.com" + html.unescape(htmlstr[start:end]), opener
-                # <a rel="nofollow" data-google-vignette="false" href="/wp-content/themes/APKMirror/download.php?id=4760949&amp;key=e3572129a0dcfdfa2cf5dad96076f869946c14ed&amp;forcebaseapk=true">here</a>
-
         print('prepare youtube apk...')
         download_folder = Path(root_path+'/rv/input')
         try:
-            apk_url, opener = get_download_link(download_page_url, cookies)
-
+            apk_url = get_download_link(download_page_url)
             print('download from ' + apk_url, 1)
             apk_path = str((download_folder/f'youtube-{version}.apk').absolute())
             response = request.urlretrieve(apk_url, apk_path)
@@ -266,34 +269,49 @@ def download_revanced_cli():
             response = request.urlretrieve(url, str(download_path.absolute()))
             is_new = True
         except HTTPError as e:
-            print('failed to get revanced cli from github', 2)
+            print('failed to get revanced cli from github. skipped', 2)
             is_new = False
     
-    return name, download_path, is_new
+    return download_path, is_new
 
 def download_revanced_patch(pkg_name):
     print('download lastest revanced patch')
     url = "https://api.github.com/repos/revanced/revanced-patches/releases/latest"
     response = request.urlopen(url)
     jdata = json.loads(response.read())
+    ver = jdata['tag_name']
+    lib_name = None
+    list_name = None
+
+    download_path = Path(root_path+'/rv/input')
     for asset in jdata['assets']:
         name = asset['name']
-        print('name: ' + name, 1)
+        if 'jar' in name:
+            lib_name = name
+            fpath = download_path/name
+        elif 'json' in name:
+            name = f"{name.split('.')[0]}.{ver}.json"
+            list_name = name
+            fpath = download_path/name
         url = asset['browser_download_url']
-        print('url: ' + url, 1)
+        print(f'{name}: {url}', 1)
 
-        download_path = Path(root_path+'/rv/input')/name
-        if 'jar' in name and download_path.exists():
-            print('latest revanced patch is in input folder', 2)
-            is_new = False
-        else:   # always download patches.json 
-            response = request.urlretrieve(url, str(download_path.absolute()))
-            is_new = True
+        if fpath.exists():
+            print(f'latest {name} file is in input folder', 2)
+            is_new = False and is_new
+        else:
+            try :
+                response = request.urlretrieve(url, str(fpath.absolute()))
+                is_new = True
+            except HTTPError as e:
+                print('failed to get {name} from github. skipped', 2)
+                is_new = False and is_new
+                
 
     # find compatible youtube version
     # use the highest version
     youtube_versions = []
-    with (Path(root_path + '/rv/input/patches.json')).open('rt') as f:
+    with (Path(root_path + '/rv/input/' + list_name)).open('rt') as f:
         patches = json.load(f)
     for patch in patches:
         if not patch['compatiblePackages']: # universal patch
@@ -310,7 +328,7 @@ def download_revanced_patch(pkg_name):
     youtube_versions = sorted(set(youtube_versions))
     
     print('compatible youtube version: ' + youtube_versions[-1], 1)
-    return name, download_path, youtube_versions[-1], is_new
+    return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new
 
 def download_revanced_integrations():
     print('download lastest revanced integrations')
@@ -319,22 +337,21 @@ def download_revanced_integrations():
     jdata = json.loads(response.read())
     asset = jdata['assets'][0]
     name = asset['name']
-    print('name: ' + name, 1)
     url = asset['browser_download_url']
-    print('url: ' + url, 1)
+    print(f'{name}: {url}', 1)
 
     download_path = Path(root_path+'/rv/input')/name
     if 'apk' in name and download_path.exists():
         print('latest revanced patch is in input folder', 2)
         is_new = False
-    else:   # always download patches.json 
+    else:
         try:
             response = request.urlretrieve(url, str(download_path.absolute()))
             is_new = True
         except Exception as e:
             pass
 
-    return name, download_path, is_new
+    return download_path, is_new
 
 def get_new_youtube_path(opt_path, apk_stem):
     out_path = Path(root_path)/'rv'/'output/'
@@ -348,16 +365,15 @@ def get_new_youtube_path(opt_path, apk_stem):
             if opt['patchName'] == 'Custom branding':
                 keyword = opt['options'][0]['value']
                 if keyword:
-                    tail = ('.' + keyword)
+                    tail = ('.' + keyword.replace(' ', '_'))
                     break
-    return str(out_path/(apk_stem + tail + '.rv.apk'))
+    return str(out_path/(apk_stem + tail + '.apk'))
 
-def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, version, args):
+def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, args):
     out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem)
 
     def find_applicable_patches(pkg_name, ver):
-        patch_file = Path(root_path + '/rv/input/patches.json')
-        if not patch_file.exists():
+        if not patch_list_path.exists():
             return None
         
         applicable_list = []
@@ -370,12 +386,11 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
             # 'Export all activities',      # crashed
             'Enable Android debugging'
         ]
-        with patch_file.open('rt') as f:
+        with patch_list_path.open('rt') as f:
             patch_list = json.load(f)
         patch_name_format = '"{}"' if args.dry_run else '{}'
         print('patches to be excluded', 2)
         for patch in patch_list:
-            # patch_name = patch['name'].lower().replace(' ', '-')    # conversion according to naming convension
             patch_name = patch['name']
             if patch_name in exclude_list:
                 print(f'-{patch_name}', 3)
@@ -410,17 +425,16 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         return None
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
     if (keystore := find_keystore()):
         cmd += ['--keystore='+keystore ]
     cmd += patches
     if args.opt_path:
-        print('update {args.opt_path} if required')
-        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.opt_path}', '-o', '-u', str(patch_path)]
+        print(f'update {args.opt_path} if required')
+        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.opt_path}', '-o', '-u', str(patch_lib_path)]
         result = execute_shell(opt_cmd)
         print('\n'.join(result))
 
-        cmd += ['-i', 'change-package-name']
         cmd += [f'--options={args.opt_path}']
     cmd += [apk_path]
     if not args.dry_run:
@@ -438,22 +452,30 @@ def download_microg():
     url = "https://api.github.com/repos/TeamVanced/VancedMicroG/releases/latest"
     response = request.urlopen(url)
     jdata = json.loads(response.read())
-    asset = jdata['assets'][0]
+    asset = jdata['assets'][0]      # always in first item
     ver = jdata['tag_name']
-    name = asset['name']
-    print('name: ' + name, 1)
+    name = f'{Path(asset["name"]).stem}.{ver}.apk'
     url = asset['browser_download_url']
-    print('url: ' + url, 1)
+    print(f'{name}: {url}', 1)
 
-    download_path = Path(root_path+'/rv/output')/f'{Path(name).stem}.{ver}.apk'
-    if 'apk' in name and download_path.exists():
+    download_path = Path(root_path+'/rv/output')/name
+    if download_path.exists():
         print('latest microg apk is in output folder', 2)
         is_new = False
     else:
         response = request.urlretrieve(url, str(download_path.absolute()))
         is_new = True
         
-    return name, download_path, is_new
+    return download_path, is_new
+
+def send_msg(msg:str):
+    global root_path
+    with open(root_path+'/secret/rvhelper', 'rt') as f:
+        discord_url = f.readline().strip()
+    
+    discord = Discord(discord_url)
+    discord.set_content(msg)
+    return discord.execute()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -471,6 +493,9 @@ if __name__ == '__main__':
         root_path = './'
 
     try:
+        if args.out_path and args.out_path[0] == '~':
+            args.out_path = os.path.expanduser(args.out_path)
+
         # prepare download folder
         download_folder = Path(root_path+'/rv/input')
         download_folder.mkdir(0o754, True, True)
@@ -480,17 +505,21 @@ if __name__ == '__main__':
 
         java_home = setup_java()
         need_update = False
-        cli_name, cli_path, is_new = download_revanced_cli()
+        cli_path, is_new = download_revanced_cli()
         need_update = need_update or is_new
 
-        patch_name, patch_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE)
+        patch_lib_path, patch_list_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE)
         need_update = need_update or is_new
 
-        integration_name, integration_path, is_new = download_revanced_integrations()
+        integration_path, is_new = download_revanced_integrations()
         need_update = need_update or is_new
 
-        microg_fname, migrog_path, is_new = download_microg()
-        need_update = need_update or is_new
+        microg_path, is_new = download_microg()
+        if is_new and microg_path and args.out_path:
+            dest_path = args.out_path + '/' + Path(microg_path).name
+            print('move new microg to ' + args.out_path)
+            shutil.copy(microg_path, dest_path)
+        # need_update = need_update or is_new       # new microg does not require fresh 
 
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
@@ -503,35 +532,34 @@ if __name__ == '__main__':
         elif not youtube_apk_path:   # pure youtube apk path
             print('youtube apk file not found...')
         else:
-            new_apk_path = patch_youtube(java_home, cli_path, patch_path, youtube_apk_path, integration_path, youtube_version, args)
+            new_apk_path = patch_youtube(java_home, 
+                                         cli_path, 
+                                         patch_lib_path,
+                                         patch_list_path,
+                                         youtube_apk_path, 
+                                         integration_path, 
+                                         youtube_version, 
+                                         args)
 
-            if Path(new_apk_path).exists() and args.out_path:
-                dest_path = args.out_path + '/' + Path(new_apk_path).name
-                print('move to outpath -> ' + args.out_path)
-                shutil.copy(new_apk_path, dest_path)
+            if Path(new_apk_path).exists():
+                if args.out_path:
+                    dest_path = args.out_path + '/' + Path(new_apk_path).name
+                    print('move new youtube to ' + args.out_path)
+                    shutil.copy(new_apk_path, dest_path)
 
-            if args.notice:
-                print('send result to discord')
-                if new_apk_path and args.notice:
-                    with open('./secret/rvhelper', 'rt') as f:
-                        url = f.readline().strip()
-                    
-                    discord = Discord(url)
+                if args.notice:
+                    print('send result to discord')
                     filename = str(Path(new_apk_path).name)
-                    msg = f'{filename} is ready!'
+                    msg = f'{filename} 준비!'
                     if args.down_link:
-                        msg += f'{os.linesep}{args.down_link}{filename}'
-                    discord.set_content(msg)
-                    resp = discord.execute()
+                        msg += f'{args.down_link}{filename}{os.linesep}'
+                        msg += f'(전체 목록: {args.down_link})'
+                    resp = send_msg(msg)
                     print(f'resp: {resp.status_code}: {resp.reason}')
             print('all done')
     except:
-        with open('./secret/rvhelper', 'rt') as f:
-            url = f.readline().strip()
         print(traceback.format_exc())
-        discord = Discord(url)                
-        discord.set_content('failed to complete rv_helper')
-        resp = discord.execute()
+        resp = send_msg('failed to complete rv_helper')
         print(f'resp: {resp.status_code}: {resp.reason}')
 
     

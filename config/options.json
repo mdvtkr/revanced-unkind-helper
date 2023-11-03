@@ -1,5 +1,29 @@
 [ {
-  "patchName" : "Spotify theme",
+  "patchName" : "Premium heading",
+  "options" : [ {
+    "key" : "usePremiumHeading",
+    "value" : true
+  } ]
+}, {
+  "patchName" : "Custom branding",
+  "options" : [ {
+    "key" : "appName",
+    "value" : "YouTube ReVanced"
+  }, {
+    "key" : "iconPath",
+    "value" : null
+  } ]
+}, {
+  "patchName" : "Theme",
+  "options" : [ {
+    "key" : "darkThemeBackgroundColor",
+    "value" : "@android:color/black"
+  }, {
+    "key" : "lightThemeBackgroundColor",
+    "value" : "@android:color/white"
+  } ]
+}, {
+  "patchName" : "Custom theme",
   "options" : [ {
     "key" : "backgroundColor",
     "value" : "@android:color/black"
@@ -15,24 +39,6 @@
   "options" : [ {
     "key" : "packageName",
     "value" : "app.revanced.android.youtube"
-  } ]
-}, {
-  "patchName" : "Theme",
-  "options" : [ {
-    "key" : "darkThemeBackgroundColor",
-    "value" : "@android:color/black"
-  }, {
-    "key" : "lightThemeBackgroundColor",
-    "value" : "@android:color/white"
-  } ]
-}, {
-  "patchName" : "Custom branding",
-  "options" : [ {
-    "key" : "appName",
-    "value" : "YouTube ReVanced"
-  }, {
-    "key" : "iconPath",
-    "value" : null
   } ]
 }, {
   "patchName" : "Spoof client",
