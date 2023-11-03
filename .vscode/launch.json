@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--out_path=~/Desktop", "--notice"]
+            "args": ["--options=config/options.ddotty.json", "--out_path=~/Desktop", "--notice"]
         },
         {
             "name": "Python: ddotty",

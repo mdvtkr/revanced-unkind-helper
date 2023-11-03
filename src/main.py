@@ -361,26 +361,35 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
             return None
         
         applicable_list = []
+        include_list = [
+            'Change package name',
+            'Export all activities'
+        ]
         exclude_list = [
-            'enable-debugging'
-            'custom-'
+            'Enable debugging',
+            # 'Export all activities',      # crashed
+            'Enable Android debugging'
         ]
         with patch_file.open('rt') as f:
             patch_list = json.load(f)
         patch_name_format = '"{}"' if args.dry_run else '{}'
         print('patches to be excluded', 2)
         for patch in patch_list:
-            patch_name = patch['name'].lower().replace(' ', '-')    # conversion according to naming convension
-            if patch['compatiblePackages'] == None:   # universal patches which are default to use
-                if patch['use'] == True:
+            # patch_name = patch['name'].lower().replace(' ', '-')    # conversion according to naming convension
+            patch_name = patch['name']
+            if patch_name in exclude_list:
+                print(f'-{patch_name}', 3)
+                continue
+            elif patch['compatiblePackages'] == None:   # universal patches which are default to use
+                if patch['use'] == True or patch_name in include_list:
                     applicable_list.append(patch_name_format.format(patch_name))
                 else:
                     print(f'-{patch_name}', 3)
-                    continue
+                continue
 
             for pkg in patch['compatiblePackages']:
                 if pkg_name == pkg['name']:
-                    if pkg_name not in exclude_list and pkg['versions'] != None and (len(pkg['versions']) == 0 or version in pkg['versions']):
+                    if pkg['versions'] == None or len(pkg['versions']) == 0 or version in pkg['versions']:
                         applicable_list.append(patch_name_format.format(patch_name))
                     else:
                         print(f'-{patch_name}', 3)
@@ -501,19 +510,20 @@ if __name__ == '__main__':
                 print('move to outpath -> ' + args.out_path)
                 shutil.copy(new_apk_path, dest_path)
 
-            print('send result to discord')
-            if new_apk_path and args.notice:
-                with open('./secret/rvhelper', 'rt') as f:
-                    url = f.readline().strip()
-                
-                discord = Discord(url)
-                filename = str(Path(new_apk_path).name)
-                msg = f'{filename} is ready!'
-                if args.down_link:
-                    msg += f'{os.linesep}{args.down_link}{filename}'
-                discord.set_content(msg)
-                resp = discord.execute()
-                print(f'resp: {resp.status_code}: {resp.reason}')
+            if args.notice:
+                print('send result to discord')
+                if new_apk_path and args.notice:
+                    with open('./secret/rvhelper', 'rt') as f:
+                        url = f.readline().strip()
+                    
+                    discord = Discord(url)
+                    filename = str(Path(new_apk_path).name)
+                    msg = f'{filename} is ready!'
+                    if args.down_link:
+                        msg += f'{os.linesep}{args.down_link}{filename}'
+                    discord.set_content(msg)
+                    resp = discord.execute()
+                    print(f'resp: {resp.status_code}: {resp.reason}')
             print('all done')
     except:
         with open('./secret/rvhelper', 'rt') as f:
@@ -525,3 +535,5 @@ if __name__ == '__main__':
         print(f'resp: {resp.status_code}: {resp.reason}')
 
     
+
+    #https://colab.research.google.com/github/Jarvis-Ank/Re-Vanced/blob/main/Re-Vanced.ipynb

@@ -4,7 +4,7 @@ output
 java
 revanced-cache
 revanced-resource-cache
-options.json
+./options.json
 build
 dist
 secret
