@@ -368,13 +368,14 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         with patch_file.open('rt') as f:
             patch_list = json.load(f)
         patch_name_format = '"{}"' if args.dry_run else '{}'
+        print('patches to be excluded', 2)
         for patch in patch_list:
             patch_name = patch['name'].lower().replace(' ', '-')    # conversion according to naming convension
             if patch['compatiblePackages'] == None:   # universal patches which are default to use
                 if patch['use'] == True:
                     applicable_list.append(patch_name_format.format(patch_name))
                 else:
-                    print(f'{patch_name} excluded.', 3)
+                    print(f'-{patch_name}', 3)
                     continue
 
             for pkg in patch['compatiblePackages']:
@@ -382,11 +383,11 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
                     if pkg_name not in exclude_list and pkg['versions'] != None and (len(pkg['versions']) == 0 or version in pkg['versions']):
                         applicable_list.append(patch_name_format.format(patch_name))
                     else:
-                        print(f'{patch_name} excluded.', 3)
+                        print(f'-{patch_name}', 3)
         return applicable_list
 
     patches = find_applicable_patches(PKG_NAME.TUBE, version)
-    print('patches to be applied:\n         ' + '\n         '.join(patches), 2)
+    print('patches to be applied:\n         ' + '\n         +'.join(patches), 2)
 
     for b in range (0,len(patches)):
         patches.insert(b*2, '-i')
@@ -400,7 +401,7 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         return None
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_path), '-m', str(integration_path)]
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
     if (keystore := find_keystore()):
         cmd += ['--keystore='+keystore ]
     cmd += patches
@@ -418,7 +419,7 @@ def patch_youtube(java_home, cli_path, patch_path, apk_path, integration_path, v
         print('\n'.join(result))
 
         print('purge caches')
-        cmd = ['rm', '-rf', 'revanced-cache*', 'revanced-resource-cache*']
+        cmd = ['rm', '-rf', 'revanced-cache', 'revanced-resource-cache', 'revanced-resource-cache.']
         result = execute_shell(cmd)
         print('\n'.join(result))
     return out_path

@@ -1,8 +1,8 @@
 [ {
-  "patchName" : "Change package name",
+  "patchName" : "Premium heading",
   "options" : [ {
-    "key" : "packageName",
-    "value" : "app.revanced.ddotty.android.youtube"
+    "key" : "usePremiumHeading",
+    "value" : true
   } ]
 }, {
   "patchName" : "Custom branding",
@@ -14,13 +14,16 @@
     "value" : null
   } ]
 }, {
-  "patchName" : "Spoof client",
+  "patchName" : "Theme",
   "options" : [ {
-    "key" : "client-id",
-    "value" : null
+    "key" : "darkThemeBackgroundColor",
+    "value" : "@android:color/black"
+  }, {
+    "key" : "lightThemeBackgroundColor",
+    "value" : "@android:color/white"
   } ]
 }, {
-  "patchName" : "Spotify theme",
+  "patchName" : "Custom theme",
   "options" : [ {
     "key" : "backgroundColor",
     "value" : "@android:color/black"
@@ -32,12 +35,15 @@
     "value" : "#ff169c46"
   } ]
 }, {
-  "patchName" : "Theme",
+  "patchName" : "Change package name",
   "options" : [ {
-    "key" : "darkThemeBackgroundColor",
-    "value" : "@android:color/black"
-  }, {
-    "key" : "lightThemeBackgroundColor",
-    "value" : "@android:color/white"
+    "key" : "packageName",
+    "value" : "app.revanced.ddotty.android.youtube"
+  } ]
+}, {
+  "patchName" : "Spoof client",
+  "options" : [ {
+    "key" : "client-id",
+    "value" : null
   } ]
 } ]

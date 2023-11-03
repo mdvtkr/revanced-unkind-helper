@@ -5,13 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: main",
+            "name": "Python: default",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--options=config/options.ddotty.json", "--notice"]
+            "args": ["--out_path=~/Desktop", "--notice"]
+        },
+        {
+            "name": "Python: ddotty",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--options=config/options.ddotty.json", "--out_path=~/Desktop", "--notice"]
         }
     ]
 }

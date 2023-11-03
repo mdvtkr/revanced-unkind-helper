@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rv-helper"
-version = "0.2.0"
+version = "0.2.1"
 description = ""
 authors = ["mdvtkr <mdvtkr@gmail.com>"]
 readme = "README.md"
@@ -16,3 +16,5 @@ pyinstaller = "^5.13.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry_bumpversion.file."src/__init__.py"]
