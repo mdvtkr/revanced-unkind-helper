@@ -5,22 +5,40 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: default",
+            "name": "Python: official|default",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--options=config/options.json", "--out_path=~/Desktop", "--notice"]
+            "args": ["--options=config/options.official.json", "--out_path=~/Desktop", "--notice"]
         },
         {
-            "name": "Python: ddotty",
+            "name": "Python: official|ddotty",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--options=config/options.ddotty.json", "--out_path=~/Desktop", "--notice"]
+            "args": ["--options=config/options.ddotty.official.json", "--out_path=~/Desktop", "--notice"]
+        },
+        {
+            "name": "Python: extended|default",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--extended", "--options=config/options.inotia00.json", "--out_path=~/Desktop", "--notice"]
+        },
+        {
+            "name": "Python: extended|ddotty",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--extended", "--options=config/options.ddotty.inotia00.json", "--out_path=~/Desktop", "--notice"]
         }
     ]
 }

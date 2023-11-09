@@ -1,0 +1,49 @@
+[ {
+  "patchName" : "Custom theme",
+  "options" : [ {
+    "key" : "backgroundColor",
+    "value" : "@android:color/black"
+  }, {
+    "key" : "accentColor",
+    "value" : "#ff1ed760"
+  }, {
+    "key" : "accentPressedColor",
+    "value" : "#ff169c46"
+  } ]
+}, {
+  "patchName" : "Spoof client",
+  "options" : [ {
+    "key" : "client-id",
+    "value" : null
+  } ]
+}, {
+  "patchName" : "Premium heading",
+  "options" : [ {
+    "key" : "usePremiumHeading",
+    "value" : true
+  } ]
+}, {
+  "patchName" : "Custom branding",
+  "options" : [ {
+    "key" : "appName",
+    "value" : "YouTube ReVanced"
+  }, {
+    "key" : "iconPath",
+    "value" : null
+  } ]
+}, {
+  "patchName" : "Theme",
+  "options" : [ {
+    "key" : "darkThemeBackgroundColor",
+    "value" : "@android:color/black"
+  }, {
+    "key" : "lightThemeBackgroundColor",
+    "value" : "@android:color/white"
+  } ]
+}, {
+  "patchName" : "Change package name",
+  "options" : [ {
+    "key" : "packageName",
+    "value" : "app.revanced.android.youtube"
+  } ]
+} ]

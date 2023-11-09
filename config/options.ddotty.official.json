@@ -1,4 +1,22 @@
 [ {
+  "patchName" : "Custom theme",
+  "options" : [ {
+    "key" : "backgroundColor",
+    "value" : "@android:color/black"
+  }, {
+    "key" : "accentColor",
+    "value" : "#ff1ed760"
+  }, {
+    "key" : "accentPressedColor",
+    "value" : "#ff169c46"
+  } ]
+}, {
+  "patchName" : "Spoof client",
+  "options" : [ {
+    "key" : "client-id",
+    "value" : null
+  } ]
+}, {
   "patchName" : "Premium heading",
   "options" : [ {
     "key" : "usePremiumHeading",
@@ -8,7 +26,7 @@
   "patchName" : "Custom branding",
   "options" : [ {
     "key" : "appName",
-    "value" : "YouTube ReVanced"
+    "value" : "똣띠똣띠"
   }, {
     "key" : "iconPath",
     "value" : null
@@ -23,27 +41,9 @@
     "value" : "@android:color/white"
   } ]
 }, {
-  "patchName" : "Custom theme",
-  "options" : [ {
-    "key" : "backgroundColor",
-    "value" : "@android:color/black"
-  }, {
-    "key" : "accentColor",
-    "value" : "#ff1ed760"
-  }, {
-    "key" : "accentPressedColor",
-    "value" : "#ff169c46"
-  } ]
-}, {
   "patchName" : "Change package name",
   "options" : [ {
     "key" : "packageName",
-    "value" : "app.revanced.android.youtube"
-  } ]
-}, {
-  "patchName" : "Spoof client",
-  "options" : [ {
-    "key" : "client-id",
-    "value" : null
+    "value" : "app.revanced.ddotty.android.youtube"
   } ]
 } ]

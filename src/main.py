@@ -28,7 +28,14 @@ class PKG_NAME(str, Enum):
     @classmethod
     def __repr__(self):
         return self.value()
-
+    
+class PROVIDER(dict, Enum):
+    """{'path':path, 'name':name}"""
+    OFFICIAL={'path':"revanced",
+              'name':"official"}
+    EXTENDED={'path':"inotia00",
+              'name':"extended"}
+    
 def execute_shell(args):
     print(f'shell command: ' + " ".join(args), 1)
     process = Popen(list(args), stdout=PIPE, stderr=PIPE)
@@ -204,6 +211,7 @@ def download_youtube(input_folder, version=None):
     print('visit apkmirror')
     browser = WebDriver(
         set_download_path=root_path+'/rv/input'
+        , disable_download=True
         # , debug_port=random.randrange(19000, 19299)
         , debug_port=19208
         , driver_preference='standard'
@@ -250,12 +258,14 @@ def download_youtube(input_folder, version=None):
     finally:
         browser.quit()
 
-def download_revanced_cli():
+def download_revanced_cli(provider:PROVIDER):
     print('download lastest revanced cli')
-    url = "https://api.github.com/repos/revanced/revanced-cli/releases/latest"
+    url = f"https://api.github.com/repos/{provider['path']}/revanced-cli/releases/latest"
     response = request.urlopen(url)
     jdata = json.loads(response.read())
-    name = jdata['assets'][0]['name']
+
+    name = Path(jdata['assets'][0]['name'])
+    name = f"{name.stem}.{provider['name']}{name.suffix}"
     print('name: ' + name, 1)
     url = jdata['assets'][0]['browser_download_url']
     print('url: ' + url, 1)
@@ -274,9 +284,9 @@ def download_revanced_cli():
     
     return download_path, is_new
 
-def download_revanced_patch(pkg_name):
+def download_revanced_patch(pkg_name, provider:PROVIDER):
     print('download lastest revanced patch')
-    url = "https://api.github.com/repos/revanced/revanced-patches/releases/latest"
+    url = f"https://api.github.com/repos/{provider['path']}/revanced-patches/releases/latest"
     response = request.urlopen(url)
     jdata = json.loads(response.read())
     ver = jdata['tag_name']
@@ -285,12 +295,13 @@ def download_revanced_patch(pkg_name):
 
     download_path = Path(root_path+'/rv/input')
     for asset in jdata['assets']:
-        name = asset['name']
-        if 'jar' in name:
+        name = Path(asset['name'])
+        if name.suffix == '.jar':
+            name = f"{name.stem}.{provider['name']}{name.suffix}"
             lib_name = name
             fpath = download_path/name
-        elif 'json' in name:
-            name = f"{name.split('.')[0]}.{ver}.json"
+        elif name.suffix == '.json':
+            name = f"{name.stem}.{provider['name']}.{ver}{name.suffix}"
             list_name = name
             fpath = download_path/name
         url = asset['browser_download_url']
@@ -330,13 +341,14 @@ def download_revanced_patch(pkg_name):
     print('compatible youtube version: ' + youtube_versions[-1], 1)
     return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new
 
-def download_revanced_integrations():
+def download_revanced_integrations(provider:PROVIDER):
     print('download lastest revanced integrations')
-    url = "https://api.github.com/repos/revanced/revanced-integrations/releases/latest"
+    url = f"https://api.github.com/repos/{provider['path']}/revanced-integrations/releases/latest"
     response = request.urlopen(url)
     jdata = json.loads(response.read())
     asset = jdata['assets'][0]
-    name = asset['name']
+    name = Path(asset['name'])
+    name = f"{name.stem}.{provider['name']}{name.suffix}"
     url = asset['browser_download_url']
     print(f'{name}: {url}', 1)
 
@@ -353,7 +365,7 @@ def download_revanced_integrations():
 
     return download_path, is_new
 
-def get_new_youtube_path(opt_path, apk_stem):
+def get_new_youtube_path(opt_path, apk_stem, provider:PROVIDER):
     out_path = Path(root_path)/'rv'/'output/'
     out_path.mkdir(0o754, True, True)
 
@@ -367,10 +379,10 @@ def get_new_youtube_path(opt_path, apk_stem):
                 if keyword:
                     tail = ('.' + keyword.replace(' ', '_'))
                     break
-    return str(out_path/(apk_stem + tail + '.apk'))
+    return str(out_path/(f"{apk_stem}{tail}.{provider['name']}.apk"))
 
-def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, args):
-    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem)
+def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, args):
+    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem, provider)
 
     def find_applicable_patches(pkg_name, ver):
         if not patch_list_path.exists():
@@ -483,6 +495,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_path', type=str, help='path to write patched apk file', default=None, action='store', dest='out_path')
     parser.add_argument('--download_link', type=str, help='base url of download link for patched apk file', default=None, action='store', dest='down_link')
     parser.add_argument('--notice', help='notice discord the result if new apk is ready', default=False, action='store_true', dest='notice')
+    parser.add_argument('--extended', help='use revanced extended', default=False, action='store_true', dest='extended')
     parser.add_argument('--dry-run', help='show the command', default=False, action='store_true', dest='dry_run')
     args = parser.parse_args()
     
@@ -496,6 +509,11 @@ if __name__ == '__main__':
         if args.out_path and args.out_path[0] == '~':
             args.out_path = os.path.expanduser(args.out_path)
 
+        if args.extended:
+            provider = PROVIDER.EXTENDED
+        else:
+            provider = PROVIDER.OFFICIAL
+
         # prepare download folder
         download_folder = Path(root_path+'/rv/input')
         download_folder.mkdir(0o754, True, True)
@@ -505,13 +523,13 @@ if __name__ == '__main__':
 
         java_home = setup_java()
         need_update = False
-        cli_path, is_new = download_revanced_cli()
+        cli_path, is_new = download_revanced_cli(provider)
         need_update = need_update or is_new
 
-        patch_lib_path, patch_list_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE)
+        patch_lib_path, patch_list_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE, provider)
         need_update = need_update or is_new
 
-        integration_path, is_new = download_revanced_integrations()
+        integration_path, is_new = download_revanced_integrations(provider)
         need_update = need_update or is_new
 
         microg_path, is_new = download_microg()
@@ -524,7 +542,7 @@ if __name__ == '__main__':
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
 
-        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem)
+        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem, provider)
         need_update = need_update or not Path(new_apk_path).exists()
 
         if not need_update:
@@ -539,6 +557,7 @@ if __name__ == '__main__':
                                          youtube_apk_path, 
                                          integration_path, 
                                          youtube_version, 
+                                         provider,
                                          args)
 
             if Path(new_apk_path).exists():
@@ -556,6 +575,10 @@ if __name__ == '__main__':
                         msg += f'(전체 목록: {args.down_link})'
                     resp = send_msg(msg)
                     print(f'resp: {resp.status_code}: {resp.reason}')
+            elif args.notice:
+                resp = send_msg('failed to build new youtube...', 1)
+                print(f'resp: {resp.status_code}: {resp.reason}')
+                
             print('all done')
     except:
         print(traceback.format_exc())
