@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "rv-helper"
-version = "0.2.3"
+version = "0.2.4"
 description = ""
 authors = ["mdvtkr <mdvtkr@gmail.com>"]
 readme = "README.md"

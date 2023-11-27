@@ -266,6 +266,7 @@ def download_revanced_cli(provider:PROVIDER):
 
     name = Path(jdata['assets'][0]['name'])
     name = f"{name.stem}.{provider['name']}{name.suffix}"
+    ver = jdata['tag_name']
     print('name: ' + name, 1)
     url = jdata['assets'][0]['browser_download_url']
     print('url: ' + url, 1)
@@ -282,7 +283,7 @@ def download_revanced_cli(provider:PROVIDER):
             print('failed to get revanced cli from github. skipped', 2)
             is_new = False
     
-    return download_path, is_new
+    return download_path, is_new, f'c{ver[1:]}'
 
 def download_revanced_patch(pkg_name, provider:PROVIDER):
     print('download lastest revanced patch')
@@ -339,7 +340,7 @@ def download_revanced_patch(pkg_name, provider:PROVIDER):
     youtube_versions = sorted(set(youtube_versions))
     
     print('compatible youtube version: ' + youtube_versions[-1], 1)
-    return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new
+    return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new, f'p{ver[1:]}'
 
 def download_revanced_integrations(provider:PROVIDER):
     print('download lastest revanced integrations')
@@ -348,6 +349,7 @@ def download_revanced_integrations(provider:PROVIDER):
     jdata = json.loads(response.read())
     asset = jdata['assets'][0]
     name = Path(asset['name'])
+    ver = jdata['tag_name']
     name = f"{name.stem}.{provider['name']}{name.suffix}"
     url = asset['browser_download_url']
     print(f'{name}: {url}', 1)
@@ -363,9 +365,9 @@ def download_revanced_integrations(provider:PROVIDER):
         except Exception as e:
             pass
 
-    return download_path, is_new
+    return download_path, is_new, f'i{ver[1:]}'
 
-def get_new_youtube_path(opt_path, apk_stem, provider:PROVIDER):
+def get_new_youtube_path(opt_path, apk_stem, provider:PROVIDER, apply_versions):
     out_path = Path(root_path)/'rv'/'output/'
     out_path.mkdir(0o754, True, True)
 
@@ -374,15 +376,15 @@ def get_new_youtube_path(opt_path, apk_stem, provider:PROVIDER):
         with open(opt_path) as f:
             opts = json.load(f)
         for opt in opts:
-            if opt['patchName'] == 'Custom branding':
+            if opt['patchName'] == 'Custom branding' or opt['patchName'] == 'Custom branding name YouTube':
                 keyword = opt['options'][0]['value']
                 if keyword:
                     tail = ('.' + keyword.replace(' ', '_'))
                     break
-    return str(out_path/(f"{apk_stem}{tail}.{provider['name']}.apk"))
+    return str(out_path/(f"{apk_stem}{tail}-{'-'.join(apply_versions)}.apk"))
 
-def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, args):
-    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem, provider)
+def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, apply_versions, args):
+    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem, provider, apply_versions)
 
     def find_applicable_patches(pkg_name, ver):
         if not patch_list_path.exists():
@@ -422,12 +424,6 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
                         print(f'-{patch_name}', 3)
         return applicable_list
 
-    patches = find_applicable_patches(PKG_NAME.TUBE, version)
-    print('patches to be applied:\n         ' + '\n         +'.join(patches), 2)
-
-    for b in range (0,len(patches)):
-        patches.insert(b*2, '-i')
-
     def find_keystore():
         dir = (Path(root_path + '/rv/output'))
         if dir.exists():
@@ -435,9 +431,15 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
                 if file.is_file() and file.suffix == '.keystore':
                     return str(file.absolute())
         return None
+    
+    patches = find_applicable_patches(PKG_NAME.TUBE, version)
+    print('patches to be applied:\n         +' + '\n         +'.join(patches), 2)
+
+    for b in range (0,len(patches)):
+        patches.insert(b*2, '-i')
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced', '-p']
     if (keystore := find_keystore()):
         cmd += ['--keystore='+keystore ]
     cmd += patches
@@ -450,11 +452,6 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
         cmd += [f'--options={args.opt_path}']
     cmd += [apk_path]
     if not args.dry_run:
-        result = execute_shell(cmd)
-        print('\n'.join(result))
-
-        print('purge caches')
-        cmd = ['rm', '-rf', 'revanced-cache', 'revanced-resource-cache', 'revanced-resource-cache.']
         result = execute_shell(cmd)
         print('\n'.join(result))
     return out_path
@@ -523,13 +520,13 @@ if __name__ == '__main__':
 
         java_home = setup_java()
         need_update = False
-        cli_path, is_new = download_revanced_cli(provider)
+        cli_path, is_new, cli_version = download_revanced_cli(provider)
         need_update = need_update or is_new
 
-        patch_lib_path, patch_list_path, youtube_version, is_new = download_revanced_patch(PKG_NAME.TUBE, provider)
+        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
         need_update = need_update or is_new
 
-        integration_path, is_new = download_revanced_integrations(provider)
+        integration_path, is_new, integ_version = download_revanced_integrations(provider)
         need_update = need_update or is_new
 
         microg_path, is_new = download_microg()
@@ -542,7 +539,8 @@ if __name__ == '__main__':
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
 
-        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem, provider)
+        apply_versions = [cli_version, patch_version, integ_version]
+        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
         need_update = need_update or not Path(new_apk_path).exists()
 
         if not need_update:
@@ -558,6 +556,7 @@ if __name__ == '__main__':
                                          integration_path, 
                                          youtube_version, 
                                          provider,
+                                         apply_versions,
                                          args)
 
             if Path(new_apk_path).exists():
