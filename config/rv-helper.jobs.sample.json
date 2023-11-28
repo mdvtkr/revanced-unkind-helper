@@ -1,0 +1,10 @@
+[
+    {
+        "options_path": "/tmp/config",
+        "out_path": "/tmp/rv",
+        "download_link": "https://www.domain.com/rv/",
+        "notice": true,
+        "extended": false,
+        "purge_cache": true
+    }
+]

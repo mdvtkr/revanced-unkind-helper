@@ -9,3 +9,6 @@ build
 dist
 secret
 *.spec
+*.json
+!*.sample.json
+.vscode

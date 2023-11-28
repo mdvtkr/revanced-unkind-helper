@@ -1,6 +1,6 @@
 import multiprocessing
 multiprocessing.freeze_support()
-from urllib import request, parse
+from urllib import request
 from pathlib import Path
 from zipfile import ZipFile
 import sys, os
@@ -8,16 +8,14 @@ from seleniummm import WebDriver
 import time
 import traceback
 import json
-from subprocess import *
+from subprocess import Popen, PIPE
 import html
 import argparse
 from discord_webhook import DiscordWebhook as Discord
 import shutil
 import platform
-import random
 from urllib.error import HTTPError
 from enum import Enum
-
 
 _print = print
 print = lambda v, i=0: _print(i*'   ' + v, flush=True)
@@ -367,24 +365,24 @@ def download_revanced_integrations(provider:PROVIDER):
 
     return download_path, is_new, f'i{ver[1:]}'
 
-def get_new_youtube_path(opt_path, apk_stem, provider:PROVIDER, apply_versions):
+def get_new_youtube_path(options_path, apk_stem, provider:PROVIDER, apply_versions):
     out_path = Path(root_path)/'rv'/'output/'
     out_path.mkdir(0o754, True, True)
 
-    tail = ''
-    if opt_path:
-        with open(opt_path) as f:
+    branding = ''
+    if options_path:
+        with open(options_path) as f:
             opts = json.load(f)
         for opt in opts:
             if opt['patchName'] == 'Custom branding' or opt['patchName'] == 'Custom branding name YouTube':
                 keyword = opt['options'][0]['value']
                 if keyword:
-                    tail = ('.' + keyword.replace(' ', '_'))
+                    branding = ('.' + keyword.replace(' ', '_'))
                     break
-    return str(out_path/(f"{apk_stem}{tail}-{'-'.join(apply_versions)}.apk"))
+    return str(out_path/(f"{apk_stem}-{'-'.join(apply_versions)}-{branding}-{provider.name}.apk"))
 
 def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, apply_versions, args):
-    out_path = get_new_youtube_path(args.opt_path, Path(apk_path).stem, provider, apply_versions)
+    out_path = get_new_youtube_path(args.options_path, Path(apk_path).stem, provider, apply_versions)
 
     def find_applicable_patches(pkg_name, ver):
         if not patch_list_path.exists():
@@ -439,17 +437,19 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
         patches.insert(b*2, '-i')
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced', '-p']
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
+    if args.purge_cache:
+        cmd += ['-p']
     if (keystore := find_keystore()):
         cmd += ['--keystore='+keystore ]
     cmd += patches
-    if args.opt_path:
-        print(f'update {args.opt_path} if required')
-        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.opt_path}', '-o', '-u', str(patch_lib_path)]
+    if args.options_path:
+        print(f'update {args.options_path} if required')
+        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.options_path}', '-o', '-u', str(patch_lib_path)]
         result = execute_shell(opt_cmd)
         print('\n'.join(result))
 
-        cmd += [f'--options={args.opt_path}']
+        cmd += [f'--options={args.options_path}']
     cmd += [apk_path]
     if not args.dry_run:
         result = execute_shell(cmd)
@@ -488,11 +488,13 @@ def send_msg(msg:str):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--options', type=str, help='options file path', default=None, action='store', dest='opt_path')
-    parser.add_argument('--out_path', type=str, help='path to write patched apk file', default=None, action='store', dest='out_path')
-    parser.add_argument('--download_link', type=str, help='base url of download link for patched apk file', default=None, action='store', dest='down_link')
+    parser.add_argument('--batch', help='batch file. ignore all other arguments.', default=None, action='store', type=str, dest='batch')
+    parser.add_argument('--options', help='options file path', default=None, action='store', type=str, dest='options_path')
+    parser.add_argument('--out_path', help='path to write patched apk file', default=None, action='store', type=str, dest='out_path')
+    parser.add_argument('--download_link', help='base url of download link for patched apk file', default=None, type=str, action='store', dest='download_link')
     parser.add_argument('--notice', help='notice discord the result if new apk is ready', default=False, action='store_true', dest='notice')
     parser.add_argument('--extended', help='use revanced extended', default=False, action='store_true', dest='extended')
+    parser.add_argument('--purge-cache', help='purge cache', default=True, action='store_false', dest='purge_cache')
     parser.add_argument('--dry-run', help='show the command', default=False, action='store_true', dest='dry_run')
     args = parser.parse_args()
     
@@ -502,88 +504,100 @@ if __name__ == '__main__':
     else:
         root_path = './'
 
-    try:
-        if args.out_path and args.out_path[0] == '~':
-            args.out_path = os.path.expanduser(args.out_path)
+    def execute():
+        try:
+            if args.out_path and args.out_path[0] == '~':
+                args.out_path = os.path.expanduser(args.out_path)
+            print('='*50)
+            print(f'options: {args.options_path}')
+            print('='*50)
 
-        if args.extended:
-            provider = PROVIDER.EXTENDED
-        else:
-            provider = PROVIDER.OFFICIAL
+            if args.extended:
+                provider = PROVIDER.EXTENDED
+            else:
+                provider = PROVIDER.OFFICIAL
 
-        # prepare download folder
-        download_folder = Path(root_path+'/rv/input')
-        download_folder.mkdir(0o754, True, True)
+            # prepare download folder
+            download_folder = Path(root_path+'/rv/input')
+            download_folder.mkdir(0o754, True, True)
 
-        output_folder = Path(root_path+'/rv/output')
-        output_folder.mkdir(0o754, True, True)
+            output_folder = Path(root_path+'/rv/output')
+            output_folder.mkdir(0o754, True, True)
 
-        java_home = setup_java()
-        need_update = False
-        cli_path, is_new, cli_version = download_revanced_cli(provider)
-        need_update = need_update or is_new
+            java_home = setup_java()
+            need_update = False
+            cli_path, is_new, cli_version = download_revanced_cli(provider)
+            need_update = need_update or is_new
 
-        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
-        need_update = need_update or is_new
+            patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
+            need_update = need_update or is_new
 
-        integration_path, is_new, integ_version = download_revanced_integrations(provider)
-        need_update = need_update or is_new
+            integration_path, is_new, integ_version = download_revanced_integrations(provider)
+            need_update = need_update or is_new
 
-        microg_path, is_new = download_microg()
-        if is_new and microg_path and args.out_path:
-            dest_path = args.out_path + '/' + Path(microg_path).name
-            print('move new microg to ' + args.out_path)
-            shutil.copy(microg_path, dest_path)
-        # need_update = need_update or is_new       # new microg does not require fresh 
+            microg_path, is_new = download_microg()
+            if is_new and microg_path and args.out_path:
+                dest_path = args.out_path + '/' + Path(microg_path).name
+                print('move new microg to ' + args.out_path)
+                shutil.copy(microg_path, dest_path)
 
-        youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
-        need_update = need_update or is_new
+            # need_update = need_update or is_new       # new microg does not require fresh 
 
-        apply_versions = [cli_version, patch_version, integ_version]
-        new_apk_path = get_new_youtube_path(args.opt_path, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
-        need_update = need_update or not Path(new_apk_path).exists()
+            youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
+            need_update = need_update or is_new
 
-        if not need_update:
-            print('nothing new...')
-        elif not youtube_apk_path:   # pure youtube apk path
-            print('youtube apk file not found...')
-        else:
-            new_apk_path = patch_youtube(java_home, 
-                                         cli_path, 
-                                         patch_lib_path,
-                                         patch_list_path,
-                                         youtube_apk_path, 
-                                         integration_path, 
-                                         youtube_version, 
-                                         provider,
-                                         apply_versions,
-                                         args)
+            apply_versions = [cli_version, patch_version, integ_version]
+            new_apk_path = get_new_youtube_path(args.options_path, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
+            need_update = need_update or not Path(new_apk_path).exists()
 
-            if Path(new_apk_path).exists():
-                if args.out_path:
-                    dest_path = args.out_path + '/' + Path(new_apk_path).name
-                    print('move new youtube to ' + args.out_path)
-                    shutil.copy(new_apk_path, dest_path)
+            if not need_update:
+                print('nothing new...')
+            elif not youtube_apk_path:   # pure youtube apk path
+                print('youtube apk file not found...')
+            else:
+                new_apk_path = patch_youtube(java_home, 
+                                            cli_path, 
+                                            patch_lib_path,
+                                            patch_list_path,
+                                            youtube_apk_path, 
+                                            integration_path, 
+                                            youtube_version, 
+                                            provider,
+                                            apply_versions,
+                                            args)
 
-                if args.notice:
-                    print('send result to discord')
-                    filename = str(Path(new_apk_path).name)
-                    msg = f'{filename} 준비!'
-                    if args.down_link:
-                        msg += f'{args.down_link}{filename}{os.linesep}'
-                        msg += f'(전체 목록: {args.down_link})'
-                    resp = send_msg(msg)
+                if Path(new_apk_path).exists():
+                    if args.out_path:
+                        dest_path = args.out_path + '/' + Path(new_apk_path).name
+                        print('move new youtube to ' + args.out_path)
+                        shutil.copy(new_apk_path, dest_path)
+
+                    if args.notice:
+                        print('send result to discord')
+                        filename = str(Path(new_apk_path).name)
+                        msg = f'{filename} 준비!{os.linesep}'
+                        if args.download_link:
+                            msg += f'{args.download_link}{filename}{os.linesep}'
+                            msg += f'(전체 목록: {args.download_link}){os.linesep}'
+                        resp = send_msg(msg)
+                        print(f'resp: {resp.status_code}: {resp.reason}')
+                elif args.notice:
+                    resp = send_msg('failed to build new youtube...', 1)
                     print(f'resp: {resp.status_code}: {resp.reason}')
-            elif args.notice:
-                resp = send_msg('failed to build new youtube...', 1)
-                print(f'resp: {resp.status_code}: {resp.reason}')
-                
-            print('all done')
-    except:
-        print(traceback.format_exc())
-        resp = send_msg('failed to complete rv_helper')
-        print(f'resp: {resp.status_code}: {resp.reason}')
+                    
+                print('all done')
+        except:
+            print(traceback.format_exc())
+            print('failed to complete rv_helper')
+            resp = send_msg('failed to complete rv_helper')
+            print(f'resp: {resp.status_code}: {resp.reason}')
 
-    
+    if args.batch:
+        with open(args.batch, 'rt') as f:
+            jobs = json.load(f)
+        for job in jobs:
+            for key in job.keys():
+                args.__setattr__(key, job[key])
+            execute()
 
     #https://colab.research.google.com/github/Jarvis-Ank/Re-Vanced/blob/main/Re-Vanced.ipynb
