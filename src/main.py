@@ -365,13 +365,13 @@ def download_revanced_integrations(provider:PROVIDER):
 
     return download_path, is_new, f'i{ver[1:]}'
 
-def get_new_youtube_path(options_path, apk_stem, provider:PROVIDER, apply_versions):
-    out_path = Path(root_path)/'rv'/'output/'
+def get_new_youtube_path(args, apk_stem, provider:PROVIDER, apply_versions):
+    out_path = Path(args.out_path)
     out_path.mkdir(0o754, True, True)
 
     branding = ''
-    if options_path:
-        with open(options_path) as f:
+    if args.options_path:
+        with open(args.options_path) as f:
             opts = json.load(f)
         for opt in opts:
             if opt['patchName'] == 'Custom branding' or opt['patchName'] == 'Custom branding name YouTube':
@@ -379,10 +379,11 @@ def get_new_youtube_path(options_path, apk_stem, provider:PROVIDER, apply_versio
                 if keyword:
                     branding = ('.' + keyword.replace(' ', '_'))
                     break
+
     return str(out_path/(f"{apk_stem}-{'-'.join(apply_versions)}-{branding}-{provider.name}.apk"))
 
 def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, apply_versions, args):
-    out_path = get_new_youtube_path(args.options_path, Path(apk_path).stem, provider, apply_versions)
+    out_path = get_new_youtube_path(args, Path(apk_path).stem, provider, apply_versions)
 
     def find_applicable_patches(pkg_name, ver):
         if not patch_list_path.exists():
@@ -547,8 +548,8 @@ if __name__ == '__main__':
             need_update = need_update or is_new
 
             apply_versions = [cli_version, patch_version, integ_version]
-            new_apk_path = get_new_youtube_path(args.options_path, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
-            need_update = need_update or not Path(new_apk_path).exists()
+            new_apk_path = get_new_youtube_path(args, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
+            need_update = need_update or not Path(new_apk_path).exists()    # check latest build is already exists.
 
             if not need_update:
                 print('nothing new...')
@@ -566,6 +567,7 @@ if __name__ == '__main__':
                                             apply_versions,
                                             args)
 
+                # build succeeded
                 if Path(new_apk_path).exists():
                     if args.out_path:
                         dest_path = args.out_path + '/' + Path(new_apk_path).name
