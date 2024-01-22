@@ -507,10 +507,13 @@ if __name__ == '__main__':
 
     def execute():
         try:
+            if not args.out_path:
+                args.out_path = f'{root_path}/rv/output/'
             if args.out_path and args.out_path[0] == '~':
                 args.out_path = os.path.expanduser(args.out_path)
             print('='*50)
             print(f'options: {args.options_path}')
+            print(f'output: {args.out_path}')
             print('='*50)
 
             if args.extended:
@@ -541,15 +544,17 @@ if __name__ == '__main__':
                 dest_path = args.out_path + '/' + Path(microg_path).name
                 print('move new microg to ' + args.out_path)
                 shutil.copy(microg_path, dest_path)
-
-            # need_update = need_update or is_new       # new microg does not require fresh 
+                # need_update = need_update or is_new       # new microg does not require fresh build
 
             youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
             need_update = need_update or is_new
 
             apply_versions = [cli_version, patch_version, integ_version]
             new_apk_path = get_new_youtube_path(args, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
-            need_update = need_update or not Path(new_apk_path).exists()    # check latest build is already exists.
+            print(f'check latest build in {new_apk_path}')
+            if not Path(new_apk_path).exists():
+                print(f'new apk not found. build required.', 1)
+                need_update = True
 
             if not need_update:
                 print('nothing new...')
