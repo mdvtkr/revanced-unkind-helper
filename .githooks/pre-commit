@@ -1,0 +1,4 @@
+#!/bin/bash
+
+poetry update
+git add poetry.lock

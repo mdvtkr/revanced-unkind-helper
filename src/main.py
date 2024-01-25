@@ -574,11 +574,8 @@ if __name__ == '__main__':
 
                 # build succeeded
                 if Path(new_apk_path).exists():
-                    if args.out_path:
-                        dest_path = args.out_path + '/' + Path(new_apk_path).name
-                        print('move new youtube to ' + args.out_path)
-                        shutil.copy(new_apk_path, dest_path)
-
+                    print(f'new apk: {new_apk_path}')
+                    
                     if args.notice:
                         print('send result to discord')
                         filename = str(Path(new_apk_path).name)
