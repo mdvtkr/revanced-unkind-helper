@@ -196,7 +196,7 @@ def download_youtube(input_folder, version=None):
         response = request.urlretrieve(url)
         with open(response[0], 'rt') as f:
             htmlstr = f.read()
-            start = htmlstr.find('href="', htmlstr.find('<a rel="nofollow"'))+6
+            start = htmlstr.find('href="', htmlstr.find(' rel="nofollow"')+6
             end = htmlstr.find('">', start)
         os.remove(response[0])
         return "https://www.apkmirror.com" + html.unescape(htmlstr[start:end])
@@ -213,7 +213,7 @@ def download_youtube(input_folder, version=None):
         # , debug_port=random.randrange(19000, 19299)
         , debug_port=19208
         , driver_preference='standard'
-        # , visible=True
+        , visible=True
     )
 
     try:
@@ -259,6 +259,7 @@ def download_youtube(input_folder, version=None):
 def download_revanced_cli(provider:PROVIDER):
     print('download lastest revanced cli')
     url = f"https://api.github.com/repos/{provider['path']}/revanced-cli/releases/latest"
+    # opener = request.build_opener()
     response = request.urlopen(url)
     jdata = json.loads(response.read())
 
