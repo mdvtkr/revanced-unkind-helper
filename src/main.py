@@ -477,7 +477,7 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
         patches.insert(b*2, '-i')
 
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, f'-p={str(patch_lib_path)}', '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
+    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
     if args.purge_cache:
         cmd += ['-p']
     if (keystore := _find_keystore()):
