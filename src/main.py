@@ -567,6 +567,7 @@ if __name__ == '__main__':
             print('nothing new...')
         elif not youtube_apk_path:   # pure youtube apk path
             print('youtube apk file not found...')
+            return new_apk_path, False
         else:
             new_apk_path = patch_youtube(java_home, 
                                         cli_path, 
@@ -578,7 +579,7 @@ if __name__ == '__main__':
                                         provider,
                                         apply_versions,
                                         args)
-        return new_apk_path
+        return new_apk_path, need_update
 
     def exec_v5(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
         patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
@@ -626,6 +627,7 @@ if __name__ == '__main__':
             print('nothing new...')
         elif not youtube_apk_path:   # pure youtube apk path
             print('youtube apk file not found...')
+            return new_apk_path, False
         else:
             new_apk_path = patch_youtube_v5(java_home, 
                                         cli_path, 
@@ -635,7 +637,7 @@ if __name__ == '__main__':
                                         provider,
                                         apply_versions,
                                         args)
-        return new_apk_path
+        return new_apk_path, need_update
 
         # Index: 
         # Name: 
@@ -686,15 +688,15 @@ if __name__ == '__main__':
             # is_new = True
 
             if(cli_version.replace('c', '').startswith('4.')):
-                new_apk_path = exec_v4(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
+                new_apk_path, updated = exec_v4(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
             else:
-                new_apk_path = exec_v5(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
+                new_apk_path, updated = exec_v5(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
 
             # build succeeded
             if Path(new_apk_path).exists():
                 print(f'new apk: {new_apk_path}')
                 
-                if args.notice:
+                if args.notice and updated:
                     print('send result to discord')
                     filename = str(Path(new_apk_path).name)
                     msg = f'{filename} 준비!{os.linesep}'
