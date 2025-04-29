@@ -44,8 +44,8 @@ def execute_shell(args):
 
     return ret
 
-def setup_java():   # currently zulu 17 is required.
-    java_path = (Path(root_path)/'rv'/'java')
+def setup_java(args):   # currently zulu 17 is required.
+    java_path = (Path(args.data_path)/'java')
     java_path.mkdir(0o754, True, True)
 
     os_name = platform.system().casefold()
@@ -197,7 +197,7 @@ def download_youtube(input_folder, version=None):
     
     print('visit apkmirror')
     browser = WebDriver(
-        set_download_path=root_path+'/rv/input'
+        set_download_path=str(input_folder)
         , disable_download=True
         # , debug_port=random.randrange(19000, 19299)
         , user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
@@ -231,7 +231,7 @@ def download_youtube(input_folder, version=None):
         
         browser.get(download_page_url)
         print('prepare youtube apk...')
-        download_folder = Path(root_path+'/rv/input')
+        download_folder = Path(input_folder)
         try:
             apk_url = get_download_link(download_page_url)
             print('download from ' + apk_url, 1)
@@ -247,7 +247,7 @@ def download_youtube(input_folder, version=None):
     finally:
         browser.quit()
 
-def download_revanced_cli(provider:PROVIDER):
+def download_revanced_cli(provider:PROVIDER, args):
     print('download lastest revanced cli')
     url = f"https://api.github.com/repos/{provider['path']}/revanced-cli/releases/latest"
     # opener = request.build_opener()
@@ -261,7 +261,7 @@ def download_revanced_cli(provider:PROVIDER):
     url = jdata['assets'][0]['browser_download_url']
     print('url: ' + url, 1)
 
-    download_path = Path(root_path+'/rv/input')/name
+    download_path = Path(args.in_path)/name
     if download_path.exists():
         is_new = False
         print('latest revanced cli is in input folder', 2)
@@ -275,7 +275,7 @@ def download_revanced_cli(provider:PROVIDER):
     
     return download_path, is_new, f'c{ver[1:]}'
 
-def download_revanced_patch(pkg_name, provider:PROVIDER):
+def download_revanced_patch(pkg_name, provider:PROVIDER, args):
     print('download lastest revanced patch')
     url = f"https://api.github.com/repos/{provider['path']}/revanced-patches/releases/latest"
     response = request.urlopen(url)
@@ -285,7 +285,7 @@ def download_revanced_patch(pkg_name, provider:PROVIDER):
     list_name = None
     scheme_v5 = False
 
-    download_path = Path(root_path+'/rv/input')
+    download_path = Path(args.in_path)
     for asset in jdata['assets']:
         name = Path(asset['name'])
         if name.suffix == '.jar':
@@ -323,7 +323,7 @@ def download_revanced_patch(pkg_name, provider:PROVIDER):
     # find compatible youtube version
     # use the highest version
     youtube_versions = []
-    with (Path(root_path + '/rv/input/' + list_name)).open('rt') as f:
+    with (Path(args.in_path + list_name)).open('rt') as f:
         patches = json.load(f)
     for patch in patches:
         if not patch['compatiblePackages']: # universal patch
@@ -342,7 +342,7 @@ def download_revanced_patch(pkg_name, provider:PROVIDER):
     print('compatible youtube version: ' + youtube_versions[-1], 1)
     return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new, f'p{ver[1:]}'
 
-def download_revanced_integrations(provider:PROVIDER):
+def download_revanced_integrations(provider:PROVIDER, download_folder):
     print('download lastest revanced integrations')
     url = f"https://api.github.com/repos/{provider['path']}/revanced-integrations/releases/latest"
     response = request.urlopen(url)
@@ -354,7 +354,7 @@ def download_revanced_integrations(provider:PROVIDER):
     url = asset['browser_download_url']
     print(f'{name}: {url}', 1)
 
-    download_path = Path(root_path+'/rv/input')/name
+    download_path = Path(download_folder)/name
     if 'apk' in name and download_path.exists():
         print('latest revanced patch is in input folder', 2)
         is_new = False
@@ -403,7 +403,7 @@ def get_new_youtube_path(args, apk_stem, provider:PROVIDER, apply_versions):
     return str(out_path/(f"{apk_stem}-{'-'.join(apply_versions)}{branding}{provider.name}.apk"))
 
 def _find_keystore():
-    dir = (Path(root_path + '/rv/output'))
+    dir = (Path(args.in_path))
     if dir.exists():
         for file in dir.iterdir():
             if file.is_file() and file.suffix == '.keystore':
@@ -496,7 +496,7 @@ def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path
         print('\n'.join(result))
     return out_path
 
-def download_microg():
+def download_microg(args):
     print('download lastest microg apk')
     url = "https://api.github.com/repos/TeamVanced/VancedMicroG/releases/latest"
     response = request.urlopen(url)
@@ -507,7 +507,7 @@ def download_microg():
     url = asset['browser_download_url']
     print(f'{name}: {url}', 1)
 
-    download_path = Path(root_path+'/rv/output')/name
+    download_path = Path(args.out_path)/name
     if download_path.exists():
         print('latest microg apk is in output folder', 2)
         is_new = False
@@ -530,7 +530,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch', help='batch file. ignore all other arguments.', default=None, action='store', type=str, dest='batch')
     parser.add_argument('--options', help='options file path', default=None, action='store', type=str, dest='options_path')
-    parser.add_argument('--out_path', help='path to write patched apk file', default=None, action='store', type=str, dest='out_path')
+    parser.add_argument('--out_path', help='redirect write patched apk file to out_path instead of data_path/output', default=None, action='store', type=str, dest='out_path')
+    parser.add_argument('--data_path', help='path for input, output, java files', default=None, action='store', type=str, dest='data_path')
     parser.add_argument('--download_link', help='base url of download link for patched apk file', default=None, type=str, action='store', dest='download_link')
     parser.add_argument('--notice', help='notice discord the result if new apk is ready', default=False, action='store_true', dest='notice')
     parser.add_argument('--extended', help='use revanced extended', default=False, action='store_true', dest='extended')
@@ -547,10 +548,10 @@ if __name__ == '__main__':
     def exec_v4(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
         print('cli v4')
 
-        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
+        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider, args)
         need_update = need_update or is_new
 
-        integration_path, is_new, integ_version = download_revanced_integrations(provider)
+        integration_path, is_new, integ_version = download_revanced_integrations(provider, download_folder)
         need_update = need_update or is_new
 
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
@@ -582,7 +583,7 @@ if __name__ == '__main__':
         return new_apk_path, need_update
 
     def exec_v5(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
-        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider)
+        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider, args)
         need_update = need_update or is_new
 
         # FOR TEST
@@ -647,13 +648,20 @@ if __name__ == '__main__':
 
     def execute():
         try:
+            if not args.data_path:
+                args.data_path = f'{root_path}/rv/'
+            if args.data_path and args.data_path[0] == '~':
+                args.data_path = os.path.expanduser(args.data_path) + '/'
             if not args.out_path:
-                args.out_path = f'{root_path}/rv/output/'
+                args.out_path = args.data_path + 'output/'
             if args.out_path and args.out_path[0] == '~':
-                args.out_path = os.path.expanduser(args.out_path)
+                args.out_path = os.path.expanduser(args.out_path) + '/'
+            args.in_path = args.data_path + 'input/'
+
             print('='*50)
             print(f'options: {args.options_path}')
-            print(f'output: {args.out_path}')
+            print(f'data path: {args.data_path}')
+            print(f'out path: {args.out_path}')
             print('='*50)
 
             if args.extended:
@@ -662,22 +670,22 @@ if __name__ == '__main__':
                 provider = PROVIDER.OFFICIAL
 
             # prepare download folder
-            download_folder = Path(root_path+'/rv/input')
+            download_folder = Path(args.in_path)
             download_folder.mkdir(0o754, True, True)
 
-            output_folder = Path(root_path+'/rv/output')
+            output_folder = Path(args.out_path)
             output_folder.mkdir(0o754, True, True)
 
-            java_home = setup_java()
+            java_home = setup_java(args)
 
-            microg_path, is_new = download_microg()
+            microg_path, is_new = download_microg(args)
             if is_new and microg_path and args.out_path:
                 dest_path = args.out_path + '/' + Path(microg_path).name
                 print('move new microg to ' + args.out_path)
                 shutil.copy(microg_path, dest_path)
 
             need_update = False
-            cli_path, is_new, cli_version = download_revanced_cli(provider)
+            cli_path, is_new, cli_version = download_revanced_cli(provider, args)
             need_update = need_update or is_new
 
             # FOR TEST
