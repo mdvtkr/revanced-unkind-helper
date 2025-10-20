@@ -419,9 +419,9 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
     if (keystore := _find_keystore()):
         cmd.append('--keystore='+keystore)
     if (branding := _get_custom_branding(args)):
-        cmd.extend(['--enable=Custom branding', f'-OappName={branding}'])
+        cmd.extend(['--enable="Custom branding"', f'-OappName="{branding}"'])
     if (pkgName := _get_custom_package_name(args)):
-        cmd.extend(['--enable=Change package name', f'-OpackageName={pkgName}'])
+        cmd.extend(['--enable="Change package name"', f'-OpackageName="{pkgName}"'])
     cmd.append(apk_path)
 
     if not args.dry_run:
