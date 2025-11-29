@@ -16,6 +16,7 @@ import shutil
 import platform
 from urllib.error import HTTPError
 from enum import Enum
+import re
 
 _print = print
 print = lambda v, i=0: _print(i*'   ' + v, flush=True)
@@ -410,7 +411,7 @@ def _find_keystore():
                 return str(file.absolute())
     return None
     
-def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, provider, apply_versions, args):
+def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, provider, apply_versions, patch_list, args):
     out_path = get_new_youtube_path(args, Path(apk_path).stem, provider, apply_versions)
     java_path = java_home+'/java' if java_home != None else 'java'
     cmd = [java_path, '-jar', str(cli_path), 'patch', '-o', out_path, f'--patches={patch_lib_path}', '--keystore-entry-alias=alias', '--keystore-entry-password=ReVanced']
@@ -419,9 +420,14 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
     if (keystore := _find_keystore()):
         cmd.append('--keystore='+keystore)
     if (branding := _get_custom_branding(args)):
-        cmd.extend(['--enable=Custom branding', f'-OappName={branding}'])
+        patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Custom branding'), None)
+        if patch_entry:
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=customName="{branding}"'])
+        else:
+            print('*** ERR: cannot find Custom branding patch')
     if (pkgName := _get_custom_package_name(args)):
-        cmd.extend(['--enable=Change package name', f'-OpackageName={pkgName}'])
+        patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Change package name'), None)
+        cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"'])
     cmd.append(apk_path)
 
     if not args.dry_run:
@@ -526,6 +532,36 @@ def send_msg(msg:str):
     discord.set_content(msg)
     return discord.execute()
 
+def parse_patch_list_to_json(data):
+    # Use a regex to capture the four key-value pairs for each block.
+    # We look for a pattern that starts with "Index: " and captures everything until the next "Index: " or end of string.
+    # The 's' flag (re.DOTALL) allows '.' to match newlines.
+    
+    # Escape special characters in 'Index:', 'Name:', 'Description:', 'Enabled:'
+    pattern = re.compile(r"Index: (\d+)\nName: (.*?)\nDescription: (.*?)\nEnabled: (true|false)", re.DOTALL)
+    
+    # Find all matches in the data string, skipping the first line
+    matches = pattern.findall('\n'.join(data[1:]))
+    
+    results = []
+    
+    for match in matches:
+        index_str, name, description, enabled_str = match
+        
+        # Convert the string values to their appropriate Python types
+        index = int(index_str)
+        # Convert 'true'/'false' strings to boolean True/False
+        enabled = enabled_str.lower() == 'true' 
+        
+        results.append({
+            "Index": index,
+            "Name": name.strip(),
+            "Description": description.strip(),
+            "Enabled": enabled
+        })
+        
+    return results
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch', help='batch file. ignore all other arguments.', default=None, action='store', type=str, dest='batch')
@@ -613,6 +649,13 @@ if __name__ == '__main__':
             if tmpVer.split('.')[0].isnumeric() and youtube_version < tmpVer:
                 youtube_version = tmpVer
         print(f'applicable youtube version : {youtube_version}')
+      
+        cmd = [java_path, '-jar', str(cli_path), 
+               'list-patches', 
+               '-f=com.google.android.youtube', 
+               str(patch_lib_path)]
+        result = execute_shell(cmd)
+        patch_list = parse_patch_list_to_json(result)
 
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
@@ -637,6 +680,7 @@ if __name__ == '__main__':
                                         youtube_version, 
                                         provider,
                                         apply_versions,
+                                        patch_list,
                                         args)
         return new_apk_path, need_update
 
@@ -679,10 +723,6 @@ if __name__ == '__main__':
             java_home = setup_java(args)
 
             microg_path, is_new = download_microg(args)
-            if is_new and microg_path and args.out_path:
-                dest_path = args.out_path + '/' + Path(microg_path).name
-                print('move new microg to ' + args.out_path)
-                shutil.copy(microg_path, dest_path)
 
             need_update = False
             cli_path, is_new, cli_version = download_revanced_cli(provider, args)
@@ -691,8 +731,8 @@ if __name__ == '__main__':
             # FOR TEST
             # need_update = False
             # microg_path = Path('rv/output/microg.v0.2.24.220220-220220001.apk')
-            # cli_path = Path('rv/input/revanced-cli-5.0.0-all.official.jar')
-            # cli_version = 'c5.0.0'
+            # cli_path = Path('rv/input/revanced-cli-5.0.1-all.official.jar')
+            # cli_version = 'c5.0.1'
             # is_new = True
 
             if(cli_version.replace('c', '').startswith('4.')):
