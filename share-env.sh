@@ -7,10 +7,15 @@ poetry config virtualenvs.path ~/.venv --local
 VENV_NAME=atwstw
 SHARED_VENV=$HOME/.venv/$VENV_NAME
 
-PYTHON_VERSION=`python3 --version | awk '{print $2}' | cut -d. -f1,2`
+PYTHON=python3
+PYTHON_VERSION=`$PYTHON --version | awk '{print $2}' | cut -d. -f1,2`
 if [ $PYTHON_VERSION != "3.11" ]; then
-	echo 'Python 3.11 is required. Abort...'
-	exit 1
+  PYTHON=python3.11
+  PYTHON_VERSION=`$PYTHON --version | awk '{print $2}' | cut -d. -f1,2`
+  if [ $PYTHON_VERSION != "3.11" ]; then
+    echo 'Python 3.11 is required. Abort...'
+    exit 1
+  fi
 fi
 
 if [ -d "./.venv" ]; then

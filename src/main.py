@@ -422,12 +422,17 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
     if (branding := _get_custom_branding(args)):
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Custom branding'), None)
         if patch_entry:
+            print('custom branding patch found: ' + json.dumps(patch_entry))
             cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=customName="{branding}"'])
         else:
             print('*** ERR: cannot find Custom branding patch')
     if (pkgName := _get_custom_package_name(args)):
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Change package name'), None)
-        cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"'])
+        print('Change package name patch found: ' + json.dumps(patch_entry))
+        if patch_entry:
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"'])
+        else:
+            print('*** ERR: cannot find Change package name patch')
     cmd.append(apk_path)
 
     if not args.dry_run:
@@ -657,6 +662,8 @@ if __name__ == '__main__':
         result = execute_shell(cmd)
         patch_list = parse_patch_list_to_json(result)
 
+        patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Custom branding'), None)
+
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
 
@@ -771,5 +778,7 @@ if __name__ == '__main__':
             for key in job.keys():
                 args.__setattr__(key, job[key])
             execute()
+    else:
+        execute()
 
     #https://colab.research.google.com/github/Jarvis-Ank/Re-Vanced/blob/main/Re-Vanced.ipynb
