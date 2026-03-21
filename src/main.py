@@ -55,7 +55,10 @@ def setup_java(args):   # currently zulu 17 is required.
         file_name = Path(url[url.rfind('/', 0)+1:len(url)])
         java_home = (java_path/file_name.stem/'bin').absolute()
     elif os_name == 'darwin':
-        url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-macosx_x64.zip"
+        if platform.machine().casefold() == 'arm64':
+            url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-macosx_aarch64.zip"
+        else:
+            url = "https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-macosx_x64.zip"
         file_name = Path(url[url.rfind('/', 0)+1:len(url)])
         java_version = str(file_name)[4:str(file_name).find('.', 0)]
         java_home = (java_path/file_name.stem/f'zulu-{java_version}.jre'/'Contents'/'Home'/'bin').absolute()
@@ -181,7 +184,7 @@ def download_youtube(input_folder, version=None):
         cookiestr = ""
         for c in cookies:
             cookiestr += f"{c['name']}={c['value']}; "
-        opener.addheaders = [('cookie', cookiestr)]
+        opener.addheaders = [ ('Cookie', cookiestr), ('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'), ('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,webp,*/*;q=0.8'), ('Referer', 'https://www.apkmirror.com/') ] # Often required for downloads ]
         request.install_opener(opener)
         response = request.urlretrieve(url)
         with open(response[0], 'rt') as f:
@@ -343,31 +346,6 @@ def download_revanced_patch(pkg_name, provider:PROVIDER, args):
     print('compatible youtube version: ' + youtube_versions[-1], 1)
     return download_path/lib_name, download_path/list_name, youtube_versions[-1], is_new, f'p{ver[1:]}'
 
-def download_revanced_integrations(provider:PROVIDER, download_folder):
-    print('download lastest revanced integrations')
-    url = f"https://api.github.com/repos/{provider['path']}/revanced-integrations/releases/latest"
-    response = request.urlopen(url)
-    jdata = json.loads(response.read())
-    asset = jdata['assets'][0]
-    name = Path(asset['name'])
-    ver = jdata['tag_name']
-    name = f"{name.stem}.{provider['name']}{name.suffix}"
-    url = asset['browser_download_url']
-    print(f'{name}: {url}', 1)
-
-    download_path = Path(download_folder)/name
-    if 'apk' in name and download_path.exists():
-        print('latest revanced patch is in input folder', 2)
-        is_new = False
-    else:
-        try:
-            response = request.urlretrieve(url, str(download_path.absolute()))
-            is_new = True
-        except Exception as e:
-            pass
-
-    return download_path, is_new, f'i{ver[1:]}'
-
 def _get_custom_branding(args):
     if args.options_path:
         with open(args.options_path) as f:
@@ -414,7 +392,11 @@ def _find_keystore():
 def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, provider, apply_versions, patch_list, args):
     out_path = get_new_youtube_path(args, Path(apk_path).stem, provider, apply_versions)
     java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '-o', out_path, f'--patches={patch_lib_path}', '--keystore-entry-alias=alias', '--keystore-entry-password=ReVanced']
+    cmd = [java_path, '-jar', str(cli_path), 'patch', 
+           '-o', out_path, 
+           f'--patches={patch_lib_path}', 
+           '-b', # TODO attestation verification
+           '--keystore-entry-alias=alias', '--keystore-entry-password=ReVanced']
     if args.purge_cache:
         cmd.append('--purge')
     if (keystore := _find_keystore()):
@@ -435,73 +417,6 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
             print('*** ERR: cannot find Change package name patch')
     cmd.append(apk_path)
 
-    if not args.dry_run:
-        result = execute_shell(cmd)
-        print('\n'.join(result))
-    return out_path
-
-def patch_youtube(java_home, cli_path, patch_lib_path, patch_list_path, apk_path, integration_path, version, provider, apply_versions, args):
-    out_path = get_new_youtube_path(args, Path(apk_path).stem, provider, apply_versions)
-
-    def find_applicable_patches(pkg_name, ver):
-        if not patch_list_path.exists():
-            return None
-        
-        applicable_list = []
-        include_list = [
-            'Change package name',
-            'Export all activities'
-        ]
-        exclude_list = [
-            'Enable debugging',
-            # 'Export all activities',      # crashed
-            'Enable Android debugging'
-        ]
-        with patch_list_path.open('rt') as f:
-            patch_list = json.load(f)
-        patch_name_format = '"{}"' if args.dry_run else '{}'
-        print('patches to be excluded', 2)
-        for patch in patch_list:
-            patch_name = patch['name']
-            if patch_name in exclude_list:
-                print(f'-{patch_name}', 3)
-                continue
-            elif patch['compatiblePackages'] == None:   # universal patches which are default to use
-                if patch['use'] == True or patch_name in include_list:
-                    applicable_list.append(patch_name_format.format(patch_name))
-                else:
-                    print(f'-{patch_name}', 3)
-                continue
-
-            for pkg in patch['compatiblePackages']:
-                if pkg_name == pkg['name']:
-                    if pkg['versions'] == None or len(pkg['versions']) == 0 or version in pkg['versions']:
-                        applicable_list.append(patch_name_format.format(patch_name))
-                    else:
-                        print(f'-{patch_name}', 3)
-        return applicable_list
-
-    patches = find_applicable_patches(PKG_NAME.TUBE, version)
-    print('patches to be applied:\n         +' + '\n         +'.join(patches), 2)
-
-    for b in range (0,len(patches)):
-        patches.insert(b*2, '-i')
-
-    java_path = java_home+'/java' if java_home != None else 'java'
-    cmd = [java_path, '-jar', str(cli_path), 'patch', '--exclusive', '-o', out_path, '-b', str(patch_lib_path), '-m', str(integration_path), '--alias', 'alias', '--keystore-entry-password', 'ReVanced']
-    if args.purge_cache:
-        cmd += ['-p']
-    if (keystore := _find_keystore()):
-        cmd += ['--keystore='+keystore ]
-    cmd += patches
-    if args.options_path:
-        print(f'update {args.options_path} if required')
-        opt_cmd = [java_path, '-jar', str(cli_path), 'options', f'-p={args.options_path}', '-o', '-u', str(patch_lib_path)]
-        result = execute_shell(opt_cmd)
-        print('\n'.join(result))
-
-        cmd += [f'--options={args.options_path}']
-    cmd += [apk_path]
     if not args.dry_run:
         result = execute_shell(cmd)
         print('\n'.join(result))
@@ -586,43 +501,6 @@ if __name__ == '__main__':
     else:
         root_path = './'
 
-    def exec_v4(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
-        print('cli v4')
-
-        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider, args)
-        need_update = need_update or is_new
-
-        integration_path, is_new, integ_version = download_revanced_integrations(provider, download_folder)
-        need_update = need_update or is_new
-
-        youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
-        need_update = need_update or is_new
-
-        apply_versions = [cli_version, patch_version, integ_version]
-        new_apk_path = get_new_youtube_path(args, Path(youtube_apk_path).stem, provider, apply_versions=apply_versions)
-        print(f'check latest build in {new_apk_path}')
-        if not Path(new_apk_path).exists():
-            print(f'new apk not found. build required.', 1)
-            need_update = True
-
-        if not need_update:
-            print('nothing new...')
-        elif not youtube_apk_path:   # pure youtube apk path
-            print('youtube apk file not found...')
-            return new_apk_path, False
-        else:
-            new_apk_path = patch_youtube(java_home, 
-                                        cli_path, 
-                                        patch_lib_path,
-                                        patch_list_path,
-                                        youtube_apk_path, 
-                                        integration_path, 
-                                        youtube_version, 
-                                        provider,
-                                        apply_versions,
-                                        args)
-        return new_apk_path, need_update
-
     def exec_v5(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
         patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider, args)
         need_update = need_update or is_new
@@ -646,7 +524,8 @@ if __name__ == '__main__':
         cmd = [java_path, '-jar', str(cli_path), 
                'list-versions', 
                '-f=com.google.android.youtube', 
-               str(patch_lib_path)]
+               '-b', # TODO attestation verification
+               '-p', str(patch_lib_path)]
         result = execute_shell(cmd)
         youtube_version = ''
         for line in result:
@@ -657,12 +536,11 @@ if __name__ == '__main__':
       
         cmd = [java_path, '-jar', str(cli_path), 
                'list-patches', 
+               '-b', # TODO attestation verification
                '-f=com.google.android.youtube', 
-               str(patch_lib_path)]
+               '-p', str(patch_lib_path)]
         result = execute_shell(cmd)
         patch_list = parse_patch_list_to_json(result)
-
-        patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Custom branding'), None)
 
         youtube_apk_path, is_new = download_youtube(download_folder, youtube_version)
         need_update = need_update or is_new
@@ -742,10 +620,7 @@ if __name__ == '__main__':
             # cli_version = 'c5.0.1'
             # is_new = True
 
-            if(cli_version.replace('c', '').startswith('4.')):
-                new_apk_path, updated = exec_v4(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
-            else:
-                new_apk_path, updated = exec_v5(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
+            new_apk_path, updated = exec_v5(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
 
             # build succeeded
             if Path(new_apk_path).exists():
