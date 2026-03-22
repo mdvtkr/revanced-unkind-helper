@@ -412,7 +412,7 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Change package name'), None)
         print('Change package name patch found: ' + json.dumps(patch_entry))
         if patch_entry:
-            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"'])
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"', f'-O=updateProviders=true'])
         else:
             print('*** ERR: cannot find Change package name patch')
     cmd.append(apk_path)
@@ -537,7 +537,8 @@ if __name__ == '__main__':
         cmd = [java_path, '-jar', str(cli_path), 
                'list-patches', 
                '-b', # TODO attestation verification
-               '-f=com.google.android.youtube', 
+               '--options',
+               '--filter-package-name=com.google.android.youtube', 
                '-p', str(patch_lib_path)]
         result = execute_shell(cmd)
         patch_list = parse_patch_list_to_json(result)
@@ -619,6 +620,7 @@ if __name__ == '__main__':
             # cli_path = Path('rv/input/revanced-cli-5.0.1-all.official.jar')
             # cli_version = 'c5.0.1'
             # is_new = True
+
 
             new_apk_path, updated = exec_v5(provider, download_folder, java_home, need_update, cli_path, is_new, cli_version)
 
