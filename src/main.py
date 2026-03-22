@@ -361,12 +361,14 @@ def _get_custom_package_name(args):
     if args.options_path:
         with open(args.options_path) as f:
             opts = json.load(f)
+        keyword = None
+        updateProviders = False 
         for opt in opts:
             if opt['patchName'] == 'Change package name':
                 keyword = opt['options'][0]['value']
-                if keyword:
-                    return keyword
-    return None
+                if len(opt['options']) > 1 and opt['options'][1]['key'] == 'updateProviders':
+                    updateProviders = opt['options'][1]['value'].lower() == 'true'
+    return (keyword, updateProviders)
 
 
 def get_new_youtube_path(args, apk_stem, provider:PROVIDER, apply_versions):
@@ -408,11 +410,11 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
             cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=customName="{branding}"'])
         else:
             print('*** ERR: cannot find Custom branding patch')
-    if (pkgName := _get_custom_package_name(args)):
+    if (custom_package_options := _get_custom_package_name(args)):
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Change package name'), None)
         print('Change package name patch found: ' + json.dumps(patch_entry))
         if patch_entry:
-            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{pkgName}"', f'-O=updateProviders=true'])
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{custom_package_options[0]}"', f'-O=updateProviders={str(custom_package_options[1]).lower()}'])
         else:
             print('*** ERR: cannot find Change package name patch')
     cmd.append(apk_path)
