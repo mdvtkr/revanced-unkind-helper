@@ -407,14 +407,14 @@ def patch_youtube_v5(java_home, cli_path, patch_lib_path, apk_path, version, pro
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Custom branding'), None)
         if patch_entry:
             print('custom branding patch found: ' + json.dumps(patch_entry))
-            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=customName="{branding}"'])
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'--options=App name={branding}'])
         else:
             print('*** ERR: cannot find Custom branding patch')
     if (custom_package_options := _get_custom_package_name(args)):
         patch_entry = next((patch for patch in patch_list if patch['Name'] in 'Change package name'), None)
         print('Change package name patch found: ' + json.dumps(patch_entry))
         if patch_entry:
-            cmd.extend([f'--ei={patch_entry["Index"]}', f'-O=packageName="{custom_package_options[0]}"', f'-O=updateProviders={str(custom_package_options[1]).lower()}'])
+            cmd.extend([f'--ei={patch_entry["Index"]}', f'--options=Package name={custom_package_options[0]}', f'--options=Update providers={str(custom_package_options[1]).lower()}'])
         else:
             print('*** ERR: cannot find Change package name patch')
     cmd.append(apk_path)
