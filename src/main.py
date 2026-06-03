@@ -279,6 +279,49 @@ def download_revanced_cli(provider:PROVIDER, args):
     
     return download_path, is_new, f'c{ver[1:]}'
 
+def download_revanced_patch_via_api(args):
+    print('download lastest revanced patch via api')
+    url = "https://api.revanced.app/v5/patches"
+    headers=[(
+        "User-Agent",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    )]  
+    
+    opener = request.build_opener()
+    opener.addheaders = headers
+    request.install_opener(opener)
+    
+    response = request.urlopen(url)
+    jdata = json.loads(response.read())
+    ver = jdata['version']
+    
+    download_path = Path(args.in_path)
+    name = Path(jdata['download_url'].split('/')[-1])
+    lib_name = f"{name.stem}.{PROVIDER.OFFICIAL['name']}.{ver}{name.suffix}"
+    fpath = download_path/lib_name
+    if(fpath.exists()):
+        print('latest revanced patch is in input folder', 2)
+        is_new = False
+    else:
+        try:
+            response = request.urlretrieve(jdata['download_url'], str(fpath.absolute()))
+            is_new = True
+        except HTTPError as e:
+            print('failed to get revanced patch from api. skipped', 2)
+            is_new = False and is_new
+    
+    name = Path(jdata['signature_download_url'].split('/')[-1])
+    sig_name = f"{name.stem}.{PROVIDER.OFFICIAL['name']}.{ver}{name.suffix}"
+    sig_fpath = download_path/sig_name
+    
+    try:
+        response = request.urlretrieve(jdata['signature_download_url'], str(sig_fpath.absolute()))
+    except HTTPError as e:
+        print('failed to get revanced patch signature from api. skipped', 2)
+        
+    return download_path/lib_name, None, None, is_new, f'p{ver[1:]}'
+    
+
 def download_revanced_patch(pkg_name, provider:PROVIDER, args):
     print('download lastest revanced patch')
     url = f"https://api.github.com/repos/{provider['path']}/revanced-patches/releases/latest"
@@ -504,7 +547,7 @@ if __name__ == '__main__':
         root_path = './'
 
     def exec_v5(provider:PROVIDER, download_folder, java_home, need_update, cli_path, is_new, cli_version):
-        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch(PKG_NAME.TUBE, provider, args)
+        patch_lib_path, patch_list_path, youtube_version, is_new, patch_version = download_revanced_patch_via_api(args)
         need_update = need_update or is_new
 
         # FOR TEST
@@ -597,7 +640,8 @@ if __name__ == '__main__':
             print('='*50)
 
             if args.extended:
-                provider = PROVIDER.EXTENDED
+                print('revanced extended provider does not support anymore.');
+                return
             else:
                 provider = PROVIDER.OFFICIAL
 
